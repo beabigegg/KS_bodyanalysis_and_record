@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+*.pyo
+config.yaml
+logs/
+state/
+temp_extract/
+test_data/
+.claude/
+.codex/

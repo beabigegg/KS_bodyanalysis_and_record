@@ -1,0 +1,156 @@
+﻿from __future__ import annotations
+
+from pathlib import Path
+import re
+
+from parsers.base import BaseParser, ParseResult
+
+
+class SectionedParser(BaseParser):
+    """Parse section/block files with nested braces."""
+
+    def parse(self, file_path: str | Path) -> ParseResult:
+        path = Path(file_path)
+        file_type = path.suffix.lstrip(".").upper()
+        result = ParseResult(file_type=file_type)
+        context_stack: list[str] = []
+
+        with path.open("r", encoding="utf-8", errors="ignore") as stream:
+            for raw_line in stream:
+                line = raw_line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                if line == "end":
+                    continue
+
+                if line.startswith("}"):
+                    if context_stack:
+                        context_stack.pop()
+                    continue
+
+                if line.endswith("{"):
+                    context_stack.append(self._normalize_block_header(line[:-1].strip()))
+                    continue
+
+                if file_type == "WIR" and line.startswith("connect"):
+                    self._parse_connect_line(line, context_stack, result, file_type)
+                    continue
+
+                entry = self._parse_key_value(line)
+                if entry is None:
+                    continue
+
+                full_name = self._join_name(context_stack, entry["key"])
+                param = {
+                    "file_type": file_type,
+                    "param_name": full_name,
+                    "param_value": entry["value"],
+                    "unit": None,
+                    "min_value": None,
+                    "max_value": None,
+                    "default_value": None,
+                }
+                result.params.append(param)
+
+                if file_type == "BSG":
+                    bsg_row = self._to_bsg_row(full_name, entry["value"])
+                    if bsg_row:
+                        result.bsg_rows.append(bsg_row)
+
+        return result
+
+    @staticmethod
+    def _normalize_block_header(header: str) -> str:
+        tokens = header.split()
+        if not tokens:
+            return "section"
+        if len(tokens) >= 2 and tokens[1].isdigit():
+            return f"{tokens[0]}_{tokens[1]}"
+        return "_".join(tokens)
+
+    @staticmethod
+    def _parse_key_value(line: str) -> dict[str, str] | None:
+        if "=" in line:
+            key, value = line.split("=", 1)
+            key = key.strip()
+            value = value.strip()
+            if not key:
+                return None
+            return {"key": key, "value": value}
+
+        # Handle tabular lines like: mc_serial_number 10354 10626
+        tokens = line.split()
+        if len(tokens) < 2:
+            return None
+
+        key = tokens[0]
+        value = tokens[-1]
+        if (
+            len(tokens) >= 3
+            and re.fullmatch(r"\d{1,2}/\d{1,2}/\d{2,4}", tokens[-2])
+            and re.fullmatch(r"\d{2}:\d{2}:\d{2}", tokens[-1])
+        ):
+            value = f"{tokens[-2]} {tokens[-1]}"
+        return {"key": key, "value": value}
+
+    @staticmethod
+    def _join_name(context_stack: list[str], key: str) -> str:
+        if not context_stack:
+            return key
+        return f"{'.'.join(context_stack)}.{key}"
+
+    def _parse_connect_line(
+        self,
+        line: str,
+        context_stack: list[str],
+        result: ParseResult,
+        file_type: str,
+    ) -> None:
+        tokens = line.split()
+        # connect <id> <instance> <site> <group> <profile>
+        if len(tokens) < 3:
+            return
+
+        connect_id = tokens[1]
+        base = self._join_name(context_stack, f"connect_{connect_id}")
+
+        fields = {
+            "id": connect_id,
+            "instance": tokens[2] if len(tokens) > 2 else None,
+            "site": tokens[3] if len(tokens) > 3 else None,
+            "group": tokens[4] if len(tokens) > 4 else None,
+            "profile": tokens[5] if len(tokens) > 5 else None,
+        }
+
+        for field, value in fields.items():
+            if value is None:
+                continue
+            result.params.append(
+                {
+                    "file_type": file_type,
+                    "param_name": f"{base}.{field}",
+                    "param_value": value,
+                    "unit": None,
+                    "min_value": None,
+                    "max_value": None,
+                    "default_value": None,
+                }
+            )
+
+    @staticmethod
+    def _to_bsg_row(param_name: str, value: str) -> dict[str, str] | None:
+        segments = param_name.split(".")
+        ball_group_segment = next((s for s in segments if s.startswith("ball_group_")), None)
+        if not ball_group_segment:
+            return None
+
+        ball_group = ball_group_segment.split("_", 2)[-1]
+        inspection_key = segments[-1]
+        process_key = ".".join(segments[1:-1]) if len(segments) > 2 else None
+
+        return {
+            "ball_group": ball_group,
+            "inspection_key": inspection_key,
+            "process_key": process_key,
+            "value": value,
+        }
