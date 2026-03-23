@@ -1,9 +1,12 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from pathlib import Path
 import re
 
 from parsers.base import BaseParser, ParseResult
+
+# Block headers that contain binary data — skip until matching closing brace
+_BINARY_BLOCK_RE = re.compile(r"^data\s+\d+\s*\{$", re.IGNORECASE)
 
 
 class SectionedParser(BaseParser):
@@ -14,6 +17,7 @@ class SectionedParser(BaseParser):
         file_type = path.suffix.lstrip(".").upper()
         result = ParseResult(file_type=file_type)
         context_stack: list[str] = []
+        skip_depth = 0  # > 0 means inside a binary data block
 
         with path.open("r", encoding="utf-8", errors="ignore") as stream:
             for raw_line in stream:
@@ -23,13 +27,26 @@ class SectionedParser(BaseParser):
                 if line == "end":
                     continue
 
+                # When inside a binary block, only track braces for depth
+                if skip_depth > 0:
+                    skip_depth += line.count("{") - line.count("}")
+                    continue
+
                 if line.startswith("}"):
                     if context_stack:
                         context_stack.pop()
                     continue
 
                 if line.endswith("{"):
+                    # Detect binary data blocks like "data 6196 {"
+                    if _BINARY_BLOCK_RE.match(line):
+                        skip_depth = 1
+                        continue
                     context_stack.append(self._normalize_block_header(line[:-1].strip()))
+                    continue
+
+                # Skip lines with non-printable characters (binary residue)
+                if not line.replace("\t", " ").isprintable():
                     continue
 
                 if file_type == "WIR" and line.startswith("connect"):
