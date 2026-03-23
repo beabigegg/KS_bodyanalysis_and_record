@@ -10,6 +10,11 @@ if not "%CONDA_EXE%"=="" (
 )
 
 :run
+echo.
+echo   KS Recipe Analysis WebUI
+echo   http://localhost:12010/
+echo.
+
 python app.py
 
 endlocal

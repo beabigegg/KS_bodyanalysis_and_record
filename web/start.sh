@@ -10,4 +10,9 @@ if command -v conda >/dev/null 2>&1; then
   conda activate "$CONDA_ENV_NAME"
 fi
 
+echo ""
+echo "  KS Recipe Analysis WebUI"
+echo "  http://localhost:12010/"
+echo ""
+
 exec python app.py
