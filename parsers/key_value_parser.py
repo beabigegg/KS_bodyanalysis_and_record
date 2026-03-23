@@ -54,14 +54,16 @@ class KeyValueParser(BaseParser):
                     "default_value": None,
                 }
 
-            if len(right_tokens) >= 8:
+            # Format: value units sys_type parm_type class min max [default prc_min prc_max]
+            #         [0]   [1]   [2]      [3]       [4]  [5] [6]  [7]     [8]      [9]
+            if len(right_tokens) >= 7:
                 return {
                     "param_name": key,
                     "param_value": self._clean(right_tokens[0]),
                     "unit": self._clean(right_tokens[1]),
                     "min_value": self._clean(right_tokens[5]),
                     "max_value": self._clean(right_tokens[6]),
-                    "default_value": self._clean(right_tokens[7]),
+                    "default_value": self._clean(right_tokens[7]) if len(right_tokens) > 7 else None,
                 }
 
             return {

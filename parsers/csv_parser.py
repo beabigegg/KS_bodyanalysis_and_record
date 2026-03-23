@@ -28,7 +28,7 @@ class CsvParser(BaseParser):
                     {
                         "file_type": file_type,
                         "param_name": measurement_name,
-                        "param_value": unit,
+                        "param_value": None,
                         "unit": unit,
                         "min_value": None,
                         "max_value": None,

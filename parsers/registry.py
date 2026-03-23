@@ -22,7 +22,7 @@ class ParserRegistry:
             "PRM": key_value,
             "LF": key_value,
             "MAG": key_value,
-            "PPC": key_value,
+            "PPC": sectioned,
             "BND": sectioned,
             "REF": sectioned,
             "HB": sectioned,
