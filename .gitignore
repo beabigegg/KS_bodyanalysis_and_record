@@ -8,3 +8,6 @@ temp_extract/
 test_data/
 .claude/
 .codex/
+node_modules/
+web/frontend/dist/
+web/.env
