@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from config import settings
+from settings import settings
 
 
 @dataclass

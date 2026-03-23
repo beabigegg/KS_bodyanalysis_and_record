@@ -6,7 +6,7 @@ from typing import Generator
 
 from sqlalchemy import Connection, Engine, create_engine
 
-from config import settings
+from settings import settings
 
 # Let web app reuse root project modules such as db/schema.py.
 ROOT_DIR = Path(__file__).resolve().parents[1]

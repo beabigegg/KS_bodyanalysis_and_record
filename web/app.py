@@ -14,7 +14,7 @@ from routes.imports import router as imports_router
 from routes.r2r import router as r2r_router
 from routes.trend import router as trend_router
 from routes.yield_corr import router as yield_router
-from config import settings
+from settings import settings
 
 logger = logging.getLogger(__name__)
 
