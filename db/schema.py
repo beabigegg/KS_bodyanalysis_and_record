@@ -58,7 +58,7 @@ recipe_params = Table(
     Column("id", BIGINT, primary_key=True, autoincrement=True),
     Column("recipe_import_id", BIGINT, ForeignKey("ksbody_recipe_import.id"), nullable=False),
     Column("file_type", VARCHAR(32), nullable=False),
-    Column("param_name", VARCHAR(255), nullable=False),
+    Column("param_name", VARCHAR(1024), nullable=False),
     Column("param_value", TEXT, nullable=True),
     Column("unit", VARCHAR(64), nullable=True),
     Column("min_value", VARCHAR(128), nullable=True),
@@ -99,8 +99,8 @@ recipe_bsg = Table(
     Column("id", BIGINT, primary_key=True, autoincrement=True),
     Column("recipe_import_id", BIGINT, ForeignKey("ksbody_recipe_import.id"), nullable=False),
     Column("ball_group", VARCHAR(64), nullable=False),
-    Column("inspection_key", VARCHAR(128), nullable=False),
-    Column("process_key", VARCHAR(128), nullable=True),
+    Column("inspection_key", VARCHAR(255), nullable=False),
+    Column("process_key", VARCHAR(255), nullable=True),
     Column("value", TEXT, nullable=True),
 )
 

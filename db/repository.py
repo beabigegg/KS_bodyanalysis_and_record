@@ -42,10 +42,15 @@ class RecipeRepository:
             recipe_import_id = int(result.inserted_primary_key[0])
 
             if params:
-                conn.execute(
-                    insert(recipe_params),
-                    [{**row, "recipe_import_id": recipe_import_id} for row in params],
-                )
+                clean_params = []
+                for row in params:
+                    r = {**row, "recipe_import_id": recipe_import_id}
+                    pn = r.get("param_name") or ""
+                    if not pn.isprintable() or len(pn) > 1024:
+                        continue
+                    clean_params.append(r)
+                if clean_params:
+                    conn.execute(insert(recipe_params), clean_params)
 
             if app_spec:
                 conn.execute(
@@ -55,10 +60,22 @@ class RecipeRepository:
                 )
 
             if bsg_rows:
-                conn.execute(
-                    insert(recipe_bsg),
-                    [{**row, "recipe_import_id": recipe_import_id} for row in bsg_rows],
-                )
+                clean_bsg = []
+                for row in bsg_rows:
+                    r = {**row, "recipe_import_id": recipe_import_id}
+                    # Skip rows with binary/non-printable data in keys
+                    pk = r.get("process_key") or ""
+                    ik = r.get("inspection_key") or ""
+                    if not pk.isprintable() or not ik.isprintable():
+                        continue
+                    # Truncate to column limits
+                    if len(pk) > 255:
+                        r["process_key"] = pk[:255]
+                    if len(ik) > 255:
+                        r["inspection_key"] = ik[:255]
+                    clean_bsg.append(r)
+                if clean_bsg:
+                    conn.execute(insert(recipe_bsg), clean_bsg)
 
             if rpm_limits:
                 conn.execute(
