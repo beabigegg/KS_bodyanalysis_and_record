@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy import Connection, select
 
-from api.utils import row_to_dict
+from utils import row_to_dict
 from deps import get_connection
 
 from db.schema import (  # type: ignore[import-not-found]

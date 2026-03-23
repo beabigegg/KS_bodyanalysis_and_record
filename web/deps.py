@@ -8,8 +8,8 @@ from sqlalchemy import Connection, Engine, create_engine
 
 from config import settings
 
-# Let backend reuse root project modules such as db/schema.py.
-ROOT_DIR = Path(__file__).resolve().parents[2]
+# Let web app reuse root project modules such as db/schema.py.
+ROOT_DIR = Path(__file__).resolve().parents[1]
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 

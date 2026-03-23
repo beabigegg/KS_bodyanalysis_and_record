@@ -10,15 +10,6 @@ if not "%CONDA_EXE%"=="" (
 )
 
 :run
-if "%APP_HOST%"=="" set "APP_HOST=0.0.0.0"
-if "%APP_PORT%"=="" set "APP_PORT=12010"
-if "%APP_MODE%"=="" set "APP_MODE=dev"
-
-if /I "%APP_MODE%"=="dev" (
-  uvicorn app:app --app-dir backend --host %APP_HOST% --port %APP_PORT% --reload
-) else (
-  uvicorn app:app --app-dir backend --host %APP_HOST% --port %APP_PORT%
-)
+python app.py
 
 endlocal
-

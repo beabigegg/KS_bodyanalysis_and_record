@@ -7,7 +7,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import Connection, and_, select
 
-from api.utils import row_to_dict
+from utils import row_to_dict
 from deps import get_connection
 
 from db.schema import recipe_import, recipe_params  # type: ignore[import-not-found]

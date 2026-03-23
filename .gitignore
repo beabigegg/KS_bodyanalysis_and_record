@@ -1,13 +1,33 @@
+# 機敏資料
+.env
+config.yaml
+
+# 程式依賴
+node_modules/
 __pycache__/
 *.pyc
 *.pyo
-config.yaml
+venv/
+
+# 編譯產物
+web/frontend/dist/
+
+# Log 與動態檔案
+*.log
 logs/
-state/
+uploads/
+outputs/
+tmp/
+temp/
 temp_extract/
+
+# 專案特定
+state/
 test_data/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
 .claude/
 .codex/
-node_modules/
-web/frontend/dist/
-web/.env

@@ -10,13 +10,4 @@ if command -v conda >/dev/null 2>&1; then
   conda activate "$CONDA_ENV_NAME"
 fi
 
-APP_HOST="${APP_HOST:-0.0.0.0}"
-APP_PORT="${APP_PORT:-12010}"
-APP_MODE="${APP_MODE:-dev}"
-
-if [[ "$APP_MODE" == "dev" ]]; then
-  exec uvicorn app:app --app-dir backend --host "$APP_HOST" --port "$APP_PORT" --reload
-fi
-
-exec uvicorn app:app --app-dir backend --host "$APP_HOST" --port "$APP_PORT"
-
+exec python app.py
