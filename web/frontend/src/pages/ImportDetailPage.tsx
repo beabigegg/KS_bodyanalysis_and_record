@@ -19,6 +19,7 @@ export function ImportDetailPage() {
   const [paramSearch, setParamSearch] = useState('')
   const [paramsByType, setParamsByType] = useState<GroupedParams>({})
   const [selectedFileType, setSelectedFileType] = useState('')
+  const [selectedGroup, setSelectedGroup] = useState('')
   const [appSpec, setAppSpec] = useState<Record<string, unknown> | null>(null)
   const [bsg, setBsg] = useState<Record<string, Array<Record<string, unknown>>>>({})
   const [rpm, setRpm] = useState<RpmData>({ limits: [], reference: [] })
@@ -45,6 +46,7 @@ export function ImportDetailPage() {
         setRpm(rpmRes.data.data)
         const fileTypes = Object.keys(paramsRes.data.data)
         setSelectedFileType(fileTypes[0] ?? '')
+        setSelectedGroup('')
       } finally {
         setLoading(false)
       }
@@ -52,14 +54,27 @@ export function ImportDetailPage() {
   }, [importId])
 
   const fileTypes = Object.keys(paramsByType)
+
+  // 從 param_name 取功能前綴（底線前第一段，或點號前第一段）
+  function getParamGroup(paramName: string): string {
+    if (paramName.includes('.')) return paramName.split('.')[0]
+    if (paramName.includes('_')) return paramName.split('_')[0]
+    return '(other)'
+  }
+
+  const availableGroups = useMemo(() => {
+    const rows = paramsByType[selectedFileType] ?? []
+    const groups = Array.from(new Set(rows.map((r) => getParamGroup(r.param_name)))).sort()
+    return groups
+  }, [paramsByType, selectedFileType])
+
   const filteredRows = useMemo(() => {
     const rows = paramsByType[selectedFileType] ?? []
-    if (!paramSearch.trim()) {
-      return rows
-    }
+    const byGroup = selectedGroup ? rows.filter((r) => getParamGroup(r.param_name) === selectedGroup) : rows
+    if (!paramSearch.trim()) return byGroup
     const keyword = paramSearch.toLowerCase()
-    return rows.filter((row) => row.param_name.toLowerCase().includes(keyword))
-  }, [paramsByType, selectedFileType, paramSearch])
+    return byGroup.filter((row) => row.param_name.toLowerCase().includes(keyword))
+  }, [paramsByType, selectedFileType, selectedGroup, paramSearch])
 
   const exportParamsCsv = () => {
     downloadCsv(
@@ -88,12 +103,31 @@ export function ImportDetailPage() {
       {activeTab === 'PARAMS' ? (
         <div className="panel">
           <div className="controls" style={{ marginBottom: 10 }}>
-            <select value={selectedFileType} onChange={(e) => setSelectedFileType(e.target.value)}>
+            <select
+              value={selectedFileType}
+              onChange={(e) => {
+                setSelectedFileType(e.target.value)
+                setSelectedGroup('')
+              }}
+            >
               {fileTypes.map((type) => (
                 <option key={type} value={type}>
                   {type}
                 </option>
               ))}
+            </select>
+            <select value={selectedGroup} onChange={(e) => setSelectedGroup(e.target.value)}>
+              <option value="">All groups ({(paramsByType[selectedFileType] ?? []).length})</option>
+              {availableGroups.map((g) => {
+                const count = (paramsByType[selectedFileType] ?? []).filter(
+                  (r) => getParamGroup(r.param_name) === g,
+                ).length
+                return (
+                  <option key={g} value={g}>
+                    {g} ({count})
+                  </option>
+                )
+              })}
             </select>
             <input
               value={paramSearch}
@@ -119,7 +153,7 @@ export function ImportDetailPage() {
           {Object.entries(bsg).length === 0 ? <p className="empty">No BSG rows.</p> : null}
           {Object.entries(bsg).map(([group, rows]) => (
             <div key={group} style={{ marginBottom: 12 }}>
-              <h3 style={{ marginBottom: 6 }}>{group}</h3>
+              <h3 style={{ marginBottom: 6 }}>Ball Group {group}</h3>
               <ObjectTable rows={rows} />
             </div>
           ))}

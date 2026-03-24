@@ -92,6 +92,12 @@ class RecipePipeline:
                     bnd_metadata = extract_bnd_metadata(parsed.params)
                     import_record.update({k: v for k, v in bnd_metadata.items() if v is not None})
 
+        # Deduplicate params: same (file_type, param_name) keeps last occurrence
+        seen: dict[tuple[str, str], int] = {}
+        for i, p in enumerate(params):
+            seen[(str(p.get("file_type", "")), str(p.get("param_name", "")))] = i
+        params = [params[i] for i in sorted(seen.values())]
+
         recipe_import_id: int | None = None
         if self.repository is not None:
             recipe_import_id = self.repository.save_recipe(
