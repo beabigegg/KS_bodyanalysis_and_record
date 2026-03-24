@@ -95,6 +95,11 @@ class SectionedParser(BaseParser):
                 return None
             return {"key": key, "value": value}
 
+        # Handle inline brace expressions like: pbi_selected { 1-5 }
+        m = re.match(r"^(\S+)\s+\{(.+)\}\s*$", line)
+        if m:
+            return {"key": m.group(1), "value": m.group(2).strip()}
+
         # Handle tabular lines like: mc_serial_number 10354 10626
         tokens = line.split()
         if len(tokens) < 2:
