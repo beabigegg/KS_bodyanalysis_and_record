@@ -247,6 +247,52 @@ tr.diff-row {
   font-family: 'IBM Plex Mono', monospace;
 }
 
+.grouped-diff {
+  display: grid;
+  gap: 10px;
+}
+
+.grouped-flat h4,
+.grouped-stage summary,
+.grouped-category summary {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.grouped-stage,
+.grouped-category {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+}
+
+.grouped-stage > summary,
+.grouped-category > summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 8px 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.grouped-stage > summary::-webkit-details-marker,
+.grouped-category > summary::-webkit-details-marker {
+  display: none;
+}
+
+.grouped-stage-body {
+  padding: 0 8px 8px;
+  display: grid;
+  gap: 8px;
+}
+
+.grouped-count {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
 @media (max-width: 1080px) {
   .app-shell {
     grid-template-columns: 1fr;

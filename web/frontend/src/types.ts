@@ -25,6 +25,8 @@ export type ParamRow = {
 export type CompareRow = {
   values: Record<string, string | number | null>
   is_diff: boolean
+  stage: string | null
+  category: string | null
   [key: string]: unknown
 }
 

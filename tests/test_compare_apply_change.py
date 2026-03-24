@@ -152,14 +152,14 @@ class CompareApplyChangeTests(unittest.TestCase):
                         "id": 1,
                         "recipe_import_id": 1,
                         "file_type": "PRM",
-                        "param_name": "CJ621A20/Bond1_Force_Seg_01",
+                        "param_name": "parms/B1_Force_Seg_01",
                         "param_value": "150",
                     },
                     {
                         "id": 2,
                         "recipe_import_id": 2,
                         "file_type": "PRM",
-                        "param_name": "CJ621A20/Bond1_Force_Seg_01",
+                        "param_name": "parms/B1_Force_Seg_01",
                         "param_value": "150",
                     },
                     {
@@ -241,6 +241,9 @@ class CompareApplyChangeTests(unittest.TestCase):
 
         data = result["data"]
         self.assertTrue(all(row["file_type"] != "BSG" for row in data["params"]))
+        self.assertEqual(data["params"][0]["stage"], "bond1")
+        self.assertEqual(data["params"][0]["category"], "seg_01")
+        self.assertTrue(all("stage" not in row and "category" not in row for row in data["bsg"]))
         self.assertGreater(len(data["bsg"]), 0)
         self.assertGreater(len(data["rpm_limits"]), 0)
         self.assertGreater(len(data["rpm_reference"]), 0)

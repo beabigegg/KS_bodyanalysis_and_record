@@ -1,15 +1,4 @@
-## ADDED Requirements
-
-### Requirement: Select recipes for comparison
-系統 SHALL 允許使用者選擇兩筆或多筆不同機台的 recipe import 記錄進行比較。
-
-#### Scenario: Select comparison targets
-- **WHEN** 使用者指定 product_type + bop + wafer_pn
-- **THEN** 系統列出所有符合條件的機台（machine_id）及其最新 recipe import 記錄，供使用者勾選比較對象
-
-#### Scenario: Quick compare latest recipes
-- **WHEN** 使用者選定產品後點選「比較所有機台」
-- **THEN** 系統 SHALL 自動選取每台機器該產品的最新 recipe import 進行比較
+## MODIFIED Requirements
 
 ### Requirement: Display parameter differences
 系統 SHALL 以 Diff 視圖顯示被比較 recipe 之間的參數差異，並依製程階段（stage）和功能域（category）分組呈現。
@@ -49,21 +38,3 @@
 #### Scenario: Unclassified params displayed under _unmapped
 - **WHEN** 某筆 param row 的 `stage = "_unmapped"`
 - **THEN** 系統 SHALL 將其歸入「未分類」區塊，不隱藏
-
-### Requirement: Include RPM data in comparison
-系統 SHALL 在跨機台比較結果中包含 RPM 資料區塊，詳見 `rpm-comparison` spec。
-
-#### Scenario: RPM sections present in compare response
-- **WHEN** 比較請求成功完成
-- **THEN** API 回傳的 `data` 物件 SHALL 包含 `rpm_limits` 和 `rpm_reference` 兩個區段
-
-### Requirement: Compare APP and BSG wide tables
-系統 SHALL 支援 recipe_app_spec 和 recipe_bsg 寬表的跨機台比較。
-
-#### Scenario: Compare capillary and wire specs
-- **WHEN** 比較包含 APP 資料
-- **THEN** 系統 SHALL 並列顯示各機台的耗材規格，差異值高亮
-
-#### Scenario: Compare ball signature settings
-- **WHEN** 比較包含 BSG 資料
-- **THEN** 系統 SHALL 並列顯示各機台的 Ball Signature 設定，差異值高亮

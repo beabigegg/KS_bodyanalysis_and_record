@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { api, type ApiResponse } from '../lib/api'
 import type { ComparePayload, ImportRecord } from '../types'
 import { DiffTable } from '../components/DiffTable'
+import { GroupedDiffTable } from '../components/GroupedDiffTable'
 
 export function ComparePage() {
   const [imports, setImports] = useState<ImportRecord[]>([])
@@ -178,7 +179,7 @@ export function ComparePage() {
       {result ? (
         <div className="panel">
           <h3 style={{ marginTop: 0 }}>Parameter Diff</h3>
-          <DiffTable rows={result.params} importIds={selectedIds} />
+          <GroupedDiffTable rows={result.params} importIds={selectedIds} />
           <h3>APP Diff</h3>
           <DiffTable rows={result.app_spec} importIds={selectedIds} />
           <h3>BSG Diff</h3>

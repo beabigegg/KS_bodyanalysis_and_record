@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import Connection, select
 
 from utils import row_to_dict
+from utils.param_classifier import ParamClassifier
 from deps import get_connection
 
 from db.schema import (  # type: ignore[import-not-found]
@@ -40,7 +41,14 @@ def _diff_rows(
     source_rows: list[dict[str, Any]],
     import_ids: list[int],
     show_all: bool,
+    include_classification: bool = False,
 ) -> list[dict[str, Any]]:
+    """Build pivoted diff rows from source_rows.
+
+    include_classification: when True, each row is enriched with ``stage`` and
+    ``category`` fields via ParamClassifier.  Only param rows need this; other
+    diff sections (app_spec, bsg, rpm_*) should leave this False.
+    """
     pivot: dict[tuple[Any, ...], dict[int, Any]] = defaultdict(dict)
     for row in source_rows:
         key = tuple(row.get(k) for k in keys)
@@ -55,6 +63,13 @@ def _diff_rows(
         item = {k: key[idx] for idx, k in enumerate(keys)}
         item["values"] = {str(import_id): val_map.get(import_id) for import_id in import_ids}
         item["is_diff"] = is_diff
+        if include_classification:
+            stage, category = ParamClassifier.classify(
+                str(item.get("param_name") or ""),
+                str(item.get("file_type") or ""),
+            )
+            item["stage"] = stage
+            item["category"] = category
         output.append(item)
     return output
 
@@ -124,7 +139,13 @@ def compare_recipe_params(
     if payload.file_type:
         param_stmt = param_stmt.where(recipe_params.c.file_type == payload.file_type)
     param_rows = [row_to_dict(row) for row in conn.execute(param_stmt).all()]
-    param_diff = _diff_rows(["file_type", "param_name"], param_rows, payload.import_ids, payload.show_all)
+    param_diff = _diff_rows(
+        ["file_type", "param_name"],
+        param_rows,
+        payload.import_ids,
+        payload.show_all,
+        include_classification=True,
+    )
 
     app_stmt = select(recipe_app_spec).where(recipe_app_spec.c.recipe_import_id.in_(payload.import_ids))
     app_rows = [row_to_dict(row) for row in conn.execute(app_stmt).all()]
