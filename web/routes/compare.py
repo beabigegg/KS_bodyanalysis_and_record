@@ -15,15 +15,24 @@ from db.schema import (  # type: ignore[import-not-found]
     recipe_bsg,
     recipe_import,
     recipe_params,
+    recipe_rpm_limits,
+    recipe_rpm_reference,
 )
 
 router = APIRouter(prefix="/api/compare", tags=["compare"])
 
 
 class CompareRequest(BaseModel):
-    import_ids: list[int] = Field(min_length=2, max_length=20)
+    import_ids: list[int] = Field(min_length=2, max_length=20, description="Import IDs to compare.")
     file_type: str | None = None
-    show_all: bool = False
+    show_all: bool = Field(default=False, description="When true, include non-diff rows.")
+
+
+def _has_diff(values: list[Any]) -> bool:
+    non_null_values = {str(value) for value in values if value is not None}
+    has_any_value = len(non_null_values) > 0
+    all_have_value = all(value is not None for value in values)
+    return len(non_null_values) > 1 or (has_any_value and not all_have_value)
 
 
 def _diff_rows(
@@ -40,7 +49,7 @@ def _diff_rows(
     output: list[dict[str, Any]] = []
     for key, val_map in pivot.items():
         values = [val_map.get(import_id) for import_id in import_ids]
-        is_diff = len({str(value) for value in values if value is not None}) > 1
+        is_diff = _has_diff(values)
         if not show_all and not is_diff:
             continue
         item = {k: key[idx] for idx, k in enumerate(keys)}
@@ -50,11 +59,54 @@ def _diff_rows(
     return output
 
 
+def _diff_rpm_rows(
+    keys: list[str],
+    value_fields: list[str],
+    source_rows: list[dict[str, Any]],
+    import_ids: list[int],
+    show_all: bool,
+) -> list[dict[str, Any]]:
+    pivot: dict[tuple[Any, ...], dict[str, dict[int, Any]]] = defaultdict(lambda: defaultdict(dict))
+
+    for row in source_rows:
+        key = tuple(row.get(k) for k in keys)
+        recipe_import_id = int(row["recipe_import_id"])
+        for field in value_fields:
+            pivot[key][field][recipe_import_id] = row.get(field)
+
+    output: list[dict[str, Any]] = []
+    sorted_keys = sorted(pivot.keys(), key=lambda key: tuple("" if v is None else str(v) for v in key))
+    for key in sorted_keys:
+        key_item = {k: key[idx] for idx, k in enumerate(keys)}
+        for field in value_fields:
+            val_map = pivot[key].get(field, {})
+            values = [val_map.get(import_id) for import_id in import_ids]
+            is_diff = _has_diff(values)
+            if not show_all and not is_diff:
+                continue
+            output.append(
+                {
+                    **key_item,
+                    "field": field,
+                    "values": {str(import_id): val_map.get(import_id) for import_id in import_ids},
+                    "is_diff": is_diff,
+                }
+            )
+    return output
+
+
 @router.post("")
 def compare_recipe_params(
     payload: CompareRequest,
     conn: Connection = Depends(get_connection),
 ) -> dict[str, Any]:
+    """
+    Compare selected imports.
+
+    Response data includes params/app_spec/bsg, plus:
+    - rpm_limits: CompareRow[] (expanded per value field)
+    - rpm_reference: CompareRow[] (expanded per value field)
+    """
     meta_stmt = (
         select(recipe_import)
         .where(recipe_import.c.id.in_(payload.import_ids))
@@ -64,7 +116,11 @@ def compare_recipe_params(
     if len(imports) != len(payload.import_ids):
         raise HTTPException(status_code=404, detail="One or more import records do not exist")
 
-    param_stmt = select(recipe_params).where(recipe_params.c.recipe_import_id.in_(payload.import_ids))
+    param_stmt = (
+        select(recipe_params)
+        .where(recipe_params.c.recipe_import_id.in_(payload.import_ids))
+        .where(recipe_params.c.file_type != "BSG")
+    )
     if payload.file_type:
         param_stmt = param_stmt.where(recipe_params.c.file_type == payload.file_type)
     param_rows = [row_to_dict(row) for row in conn.execute(param_stmt).all()]
@@ -76,7 +132,7 @@ def compare_recipe_params(
     app_columns = [c.name for c in recipe_app_spec.columns if c.name not in {"id", "recipe_import_id"}]
     for column in app_columns:
         values = {str(int(row["recipe_import_id"])): row.get(column) for row in app_rows}
-        is_diff = len({str(val) for val in values.values() if val is not None}) > 1
+        is_diff = _has_diff(list(values.values()))
         if payload.show_all or is_diff:
             app_pivot.append({"field": column, "values": values, "is_diff": is_diff})
 
@@ -89,13 +145,52 @@ def compare_recipe_params(
         payload.show_all,
     )
 
+    rpm_limit_stmt = select(recipe_rpm_limits).where(recipe_rpm_limits.c.recipe_import_id.in_(payload.import_ids))
+    rpm_limit_rows = [row_to_dict(row) for row in conn.execute(rpm_limit_stmt).all()]
+    rpm_limits_diff = _diff_rpm_rows(
+        [
+            "signal_name",
+            "property_name",
+            "rpm_group",
+            "bond_type",
+            "measurement_name",
+            "limit_type",
+            "statistic_type",
+            "parameter_set",
+        ],
+        ["lower_limit", "upper_limit", "active"],
+        rpm_limit_rows,
+        payload.import_ids,
+        payload.show_all,
+    )
+
+    rpm_reference_stmt = select(recipe_rpm_reference).where(
+        recipe_rpm_reference.c.recipe_import_id.in_(payload.import_ids)
+    )
+    rpm_reference_rows = [row_to_dict(row) for row in conn.execute(rpm_reference_stmt).all()]
+    rpm_reference_diff = _diff_rpm_rows(
+        [
+            "signal_name",
+            "property_name",
+            "rpm_group",
+            "bond_type",
+            "measurement_name",
+            "source",
+        ],
+        ["average", "median", "std_dev", "median_abs_dev", "minimum", "maximum", "sample_count"],
+        rpm_reference_rows,
+        payload.import_ids,
+        payload.show_all,
+    )
+
     return {
         "data": {
             "imports": imports,
             "params": param_diff,
             "app_spec": app_pivot,
             "bsg": bsg_diff,
+            "rpm_limits": rpm_limits_diff,
+            "rpm_reference": rpm_reference_diff,
         },
         "total": len(param_diff),
     }
-

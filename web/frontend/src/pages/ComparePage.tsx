@@ -1,14 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { api, type ApiResponse } from '../lib/api'
-import type { CompareRow, ImportRecord } from '../types'
+import type { ComparePayload, ImportRecord } from '../types'
 import { DiffTable } from '../components/DiffTable'
-
-type ComparePayload = {
-  imports: ImportRecord[]
-  params: CompareRow[]
-  app_spec: CompareRow[]
-  bsg: CompareRow[]
-}
 
 export function ComparePage() {
   const [imports, setImports] = useState<ImportRecord[]>([])
@@ -190,9 +183,12 @@ export function ComparePage() {
           <DiffTable rows={result.app_spec} importIds={selectedIds} />
           <h3>BSG Diff</h3>
           <DiffTable rows={result.bsg} importIds={selectedIds} />
+          <h3>RPM Limits Diff</h3>
+          <DiffTable rows={result.rpm_limits} importIds={selectedIds} />
+          <h3>RPM Reference Diff</h3>
+          <DiffTable rows={result.rpm_reference} importIds={selectedIds} />
         </div>
       ) : null}
     </section>
   )
 }
-
