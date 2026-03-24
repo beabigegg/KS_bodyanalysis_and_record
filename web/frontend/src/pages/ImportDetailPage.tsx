@@ -55,10 +55,11 @@ export function ImportDetailPage() {
 
   const fileTypes = Object.keys(paramsByType)
 
-  // 從 param_name 取功能前綴（底線前第一段，或點號前第一段）
+  // 從 param_name 取分組前綴
+  // 格式優先順序：role/pp_body → role；section.key → section；其他 → '(other)'
   function getParamGroup(paramName: string): string {
+    if (paramName.includes('/')) return paramName.split('/')[0]
     if (paramName.includes('.')) return paramName.split('.')[0]
-    if (paramName.includes('_')) return paramName.split('_')[0]
     return '(other)'
   }
 

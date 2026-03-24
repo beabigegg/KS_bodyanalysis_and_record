@@ -10,7 +10,8 @@ export function DiffTable({ rows, importIds }: DiffTableProps) {
     return <p className="empty">No comparison rows.</p>
   }
 
-  const metaKeys = Object.keys(rows[0]).filter((key) => key !== 'values' && key !== 'is_diff')
+  const HIDDEN_KEYS = new Set(['values', 'is_diff', 'stage', 'category'])
+  const metaKeys = Object.keys(rows[0]).filter((key) => !HIDDEN_KEYS.has(key))
 
   return (
     <div className="table-wrap">
@@ -27,7 +28,7 @@ export function DiffTable({ rows, importIds }: DiffTableProps) {
         </thead>
         <tbody>
           {rows.map((row, idx) => (
-            <tr key={`${idx}-${String(row[metaKeys[0]])}`} className={row.is_diff ? 'diff-row' : ''}>
+            <tr key={`row-${idx}`} className={row.is_diff ? 'diff-row' : ''}>
               {metaKeys.map((key) => (
                 <td key={`${idx}-${key}`}>{String(row[key] ?? '')}</td>
               ))}

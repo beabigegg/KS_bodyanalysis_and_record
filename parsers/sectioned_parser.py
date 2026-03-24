@@ -62,7 +62,7 @@ class SectionedParser(BaseParser):
                     "file_type": file_type,
                     "param_name": full_name,
                     "param_value": entry["value"],
-                    "unit": None,
+                    "unit": entry.get("unit"),
                     "min_value": None,
                     "max_value": None,
                     "default_value": None,
@@ -93,7 +93,21 @@ class SectionedParser(BaseParser):
             value = value.strip()
             if not key:
                 return None
-            return {"key": key, "value": value}
+            # Extract trailing alphabetic unit token (e.g. "mils", "deg")
+            # when the preceding tokens are all numeric.
+            unit: str | None = None
+            tokens = value.split()
+            if (
+                len(tokens) >= 2
+                and re.fullmatch(r"[a-zA-Z]+", tokens[-1])
+                and all(
+                    re.fullmatch(r"[+-]?\d+(\.\d+)?([eE][+-]?\d+)?", t)
+                    for t in tokens[:-1]
+                )
+            ):
+                unit = tokens[-1]
+                value = " ".join(tokens[:-1])
+            return {"key": key, "value": value, "unit": unit}
 
         # Handle inline brace expressions like: pbi_selected { 1-5 }
         m = re.match(r"^(\S+)\s+\{(.+)\}\s*$", line)

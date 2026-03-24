@@ -14,6 +14,7 @@ export function ComparePage() {
   const [showAll, setShowAll] = useState(false)
   const [result, setResult] = useState<ComparePayload | null>(null)
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     void (async () => {
@@ -32,8 +33,8 @@ export function ComparePage() {
           page++
         }
         setImports(allImports)
-      } catch {
-        // silent
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load import records.')
       }
     })()
   }, [])
@@ -84,6 +85,7 @@ export function ComparePage() {
       return
     }
     setLoading(true)
+    setError(null)
     try {
       const response = await api.post<ApiResponse<ComparePayload>>('/compare', {
         import_ids: selectedIds,
@@ -91,6 +93,8 @@ export function ComparePage() {
         show_all: showAll,
       })
       setResult(response.data.data)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Compare request failed.')
     } finally {
       setLoading(false)
     }
@@ -175,6 +179,8 @@ export function ComparePage() {
           </table>
         </div>
       </div>
+
+      {error ? <p className="error-msg">{error}</p> : null}
 
       {result ? (
         <div className="panel">

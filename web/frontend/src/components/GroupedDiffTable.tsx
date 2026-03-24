@@ -105,7 +105,7 @@ export function GroupedDiffTable({ rows, importIds }: GroupedDiffTableProps) {
       {grouped.flatRows.length > 0 ? (
         <details className="grouped-stage" open={grouped.flatRows.some((row) => row.is_diff)}>
           <summary>
-            <span>其他（無製程階段）</span>
+            <span>Other (no stage)</span>
             <span className="grouped-count">
               {grouped.flatRows.filter((row) => row.is_diff).length} diff
             </span>

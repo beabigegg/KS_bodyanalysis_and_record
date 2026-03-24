@@ -59,6 +59,13 @@ class PipelineApplyChangeTests(unittest.TestCase):
         self.assertEqual(resolve_role("CJ621A20", "PRM", registry), "parms")
         self.assertIsNone(resolve_role("CJ621A20", "LF", registry))
 
+    def test_resolve_role_for_wir(self) -> None:
+        registry = ComponentRegistry(wire_stem="AP643419")
+
+        self.assertEqual(resolve_role("AP643419", "WIR", registry), "wire")
+        self.assertIsNone(resolve_role("OTHER123", "WIR", registry))
+        self.assertIsNone(resolve_role("AP643419", "WIR", ComponentRegistry()))
+
     def test_should_keep_parms_2(self) -> None:
         p1 = ParmsEntry(stem="A", has_bsg=True)
         p2 = ParmsEntry(stem="B", has_bsg=False)

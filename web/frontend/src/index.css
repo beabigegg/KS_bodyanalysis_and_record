@@ -243,6 +243,11 @@ tr.diff-row {
   padding: 8px 2px;
 }
 
+.error-msg {
+  color: var(--danger);
+  padding: 8px 2px;
+}
+
 .mono {
   font-family: 'IBM Plex Mono', monospace;
 }

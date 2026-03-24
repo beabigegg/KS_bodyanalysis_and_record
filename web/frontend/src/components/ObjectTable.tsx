@@ -25,7 +25,7 @@ export function ObjectTable({ rows }: ObjectTableProps) {
         </thead>
         <tbody>
           {rows.map((row, idx) => (
-            <tr key={idx}>
+            <tr key={`row-${idx}`}>
               {headers.map((header) => (
                 <td key={`${idx}-${header}`}>{String(row[header] ?? '')}</td>
               ))}

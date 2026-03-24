@@ -10,7 +10,7 @@ from extractor.metadata import extract_bnd_metadata, extract_metadata
 from parsers.bnd_registry import BNDRegistryParser, ComponentRegistry, ParmsEntry
 from parsers.registry import ParserRegistry
 
-ROLE_REQUIRED_FILE_TYPES = {"PHY", "PRM", "REF"}
+ROLE_REQUIRED_FILE_TYPES = {"PHY", "PRM", "REF", "WIR"}
 
 
 @dataclass
@@ -64,6 +64,11 @@ def resolve_role(stem: str, file_type: str, registry: ComponentRegistry | None) 
             if ref_type == "LEAD":
                 return "lead_ref"
             return f"ref_{index}"
+        return None
+
+    if normalized_type == "WIR":
+        if registry.wire_stem and stem == registry.wire_stem:
+            return "wire"
         return None
 
     return None
