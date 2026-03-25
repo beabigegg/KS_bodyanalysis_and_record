@@ -87,6 +87,17 @@ def _build_client() -> TestClient:
                 {
                     "id": 3,
                     "recipe_import_id": 1,
+                    "file_type": "PRM",
+                    "param_name": "parms/SF3_Rtn_Control",
+                    "param_value": "1",
+                    "unit": None,
+                    "min_value": None,
+                    "max_value": None,
+                    "default_value": None,
+                },
+                {
+                    "id": 4,
+                    "recipe_import_id": 1,
                     "file_type": "PHY",
                     "param_name": "mag_handler/IN_FIRST_SLOT",
                     "param_value": "1",
@@ -96,7 +107,7 @@ def _build_client() -> TestClient:
                     "default_value": None,
                 },
                 {
-                    "id": 4,
+                    "id": 5,
                     "recipe_import_id": 1,
                     "file_type": "LF",
                     "param_name": "LF_PITCH",
@@ -107,7 +118,7 @@ def _build_client() -> TestClient:
                     "default_value": None,
                 },
                 {
-                    "id": 5,
+                    "id": 6,
                     "recipe_import_id": 1,
                     "file_type": "BSG",
                     "param_name": "ball_group_1.pbi_dia_nom",
@@ -213,7 +224,7 @@ def test_import_summary_reports_section_counts() -> None:
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["data"]["params_total"] == 4
+    assert payload["data"]["params_total"] == 5
     assert payload["data"]["sections"] == {
         "has_app_spec": True,
         "bsg_rows": 2,
@@ -223,7 +234,7 @@ def test_import_summary_reports_section_counts() -> None:
     assert payload["data"]["file_types"] == [
         {"file_type": "LF", "count": 1},
         {"file_type": "PHY", "count": 1},
-        {"file_type": "PRM", "count": 2},
+        {"file_type": "PRM", "count": 3},
     ]
 
 
@@ -245,14 +256,17 @@ def test_param_facets_return_semantic_filter_values() -> None:
     assert payload["file_types"] == [
         {"value": "LF", "count": 1},
         {"value": "PHY", "count": 1},
-        {"value": "PRM", "count": 2},
+        {"value": "PRM", "count": 3},
     ]
-    assert payload["param_groups_by_file_type"]["PRM"] == [{"value": "wire_2", "count": 2}]
+    assert payload["param_groups_by_file_type"]["PRM"] == [{"value": "wire_2", "count": 3}]
     assert payload["param_groups_by_file_type"]["PHY"] == [{"value": "mag_handler", "count": 1}]
     assert payload["stages_by_file_type"]["PRM"] == [
+        {"value": "bits_other", "count": 1},
         {"value": "bond1", "count": 2},
     ]
     assert payload["categories_by_file_type"]["PHY"] == [{"value": "slot", "count": 1}]
+    assert payload["families_by_file_type"]["PRM"] == [{"value": "safety_fence", "count": 1}]
+    assert payload["features_by_file_type"]["PRM"] == [{"value": "return_control", "count": 1}]
 
 
 def test_get_import_params_pages_and_filters_semantic_rows() -> None:
@@ -280,6 +294,30 @@ def test_get_import_params_pages_and_filters_semantic_rows() -> None:
     assert payload["data"]["rows"][0]["param_group"] == "wire_2"
     assert payload["data"]["rows"][0]["stage"] == "bond1"
     assert payload["data"]["rows"][0]["category"] == "force"
+    assert payload["data"]["rows"][0]["family"] is None
+    assert payload["data"]["rows"][0]["feature"] is None
+
+
+def test_get_import_params_returns_dictionary_backed_semantics() -> None:
+    client = _build_client()
+
+    response = client.get(
+        "/api/imports/1/params",
+        params={"file_type": "PRM", "family": "safety_fence", "feature": "return_control"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["total"] == 1
+    row = payload["data"]["rows"][0]
+    assert row["param_name"] == "parms/SF3_Rtn_Control"
+    assert row["stage"] == "bits_other"
+    assert row["category"] == "return_control"
+    assert row["family"] == "safety_fence"
+    assert row["feature"] == "return_control"
+    assert row["instance"] == "sf3"
+    assert row["description"] == "Safety Fence return control"
+    assert row["tunable"] is True
 
 
 def test_get_import_params_excludes_raw_bsg_by_default() -> None:
@@ -289,5 +327,5 @@ def test_get_import_params_excludes_raw_bsg_by_default() -> None:
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["total"] == 4
+    assert payload["total"] == 5
     assert all(row["file_type"] != "BSG" for row in payload["data"]["rows"])

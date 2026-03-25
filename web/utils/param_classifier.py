@@ -1,6 +1,36 @@
 from __future__ import annotations
 
+from dataclasses import asdict, dataclass
+from functools import lru_cache
+import json
+from pathlib import Path
 import re
+
+
+@dataclass(frozen=True)
+class ParamSemantics:
+    stage: str | None = None
+    category: str | None = None
+    family: str | None = None
+    feature: str | None = None
+    instance: str | None = None
+    description: str | None = None
+    tunable: bool | None = None
+
+    def as_dict(self) -> dict[str, str | bool | None]:
+        return asdict(self)
+
+
+@dataclass(frozen=True)
+class _CompiledSemanticRule:
+    pattern: re.Pattern[str]
+    stage: str | None
+    category: str | None
+    family: str | None
+    feature: str | None
+    description: str | None
+    tunable: bool | None
+    instance_template: str | None
 
 
 class ParamClassifier:
@@ -91,6 +121,7 @@ class ParamClassifier:
         "MULTIBEND",
         "MULTIBENDPAYOUT",
         "MULTIBENDANGLE",
+        "EXTRAANGLE",
         "SHARPNESS",
         "SMOOTH",
         "LAT",
@@ -117,6 +148,8 @@ class ParamClassifier:
         "BLEED",
         "SHARPNESS",
         "MULTIBEND",
+        "EXTRAANGLE",
+        "EXTRA ANGLE",
         "SMOOTH",
         "LAT",
         "LF3",
@@ -275,16 +308,71 @@ class ParamClassifier:
         return "other"
 
     @classmethod
+    @lru_cache(maxsize=1)
+    def _prm_semantic_rules(cls) -> tuple[_CompiledSemanticRule, ...]:
+        config_path = Path(__file__).resolve().parents[1] / "config" / "prm_semantics.json"
+        with config_path.open("r", encoding="utf-8") as stream:
+            payload = json.load(stream)
+        rules: list[_CompiledSemanticRule] = []
+        for item in payload.get("rules", []):
+            rules.append(
+                _CompiledSemanticRule(
+                    pattern=re.compile(str(item["pattern"]), re.IGNORECASE),
+                    stage=item.get("stage"),
+                    category=item.get("category"),
+                    family=item.get("family"),
+                    feature=item.get("feature"),
+                    description=item.get("description"),
+                    tunable=item.get("tunable"),
+                    instance_template=item.get("instance_template"),
+                )
+            )
+        return tuple(rules)
+
+    @classmethod
+    def _match_prm_rule(cls, pp_body: str) -> ParamSemantics | None:
+        for rule in cls._prm_semantic_rules():
+            match = rule.pattern.match(pp_body)
+            if match is None:
+                continue
+            group_values = {
+                key: value.lower()
+                for key, value in match.groupdict().items()
+                if value is not None
+            }
+            instance = (
+                rule.instance_template.format(**group_values)
+                if rule.instance_template
+                else None
+            )
+            return ParamSemantics(
+                stage=rule.stage,
+                category=rule.category or rule.feature,
+                family=rule.family,
+                feature=rule.feature,
+                instance=instance,
+                description=rule.description,
+                tunable=rule.tunable,
+            )
+        return None
+
+    @classmethod
     def _prm_stage(cls, prefix: str, body_upper: str) -> str:
         if prefix in cls.QUICK_ADJUST_PREFIXES or "ADJUST" in body_upper:
             return "quick_adjust"
 
-        if prefix in cls.BITS_PREFIXES or cls._has_any(body_upper, {"NSOP", "NSOL", "SHTL", "BITS"} | cls.BITS_MISC_KEYWORDS):
+        if prefix in cls.BITS_PREFIXES or cls._has_any(
+            body_upper,
+            {"NSOP", "NSOL", "SHTL", "BITS"} | cls.BITS_MISC_KEYWORDS,
+        ):
             return "bits_other"
 
         if prefix in cls.LOOP_PREFIXES or cls._has_any(
             body_upper,
-            cls.LOOP_SECOND_APPROACH_KEYWORDS | cls.LOOP_BALANCE_KEYWORDS | cls.LOOP_SHAPING_KEYWORDS | cls.LOOP_MAIN_KEYWORDS,
+            cls.LOOP_SECOND_APPROACH_KEYWORDS
+            | cls.LOOP_BALANCE_KEYWORDS
+            | cls.LOOP_SHAPING_KEYWORDS
+            | cls.LOOP_MAIN_KEYWORDS,
         ):
             return "loop"
 
@@ -299,7 +387,11 @@ class ParamClassifier:
 
         if prefix in cls.BOND1_PREFIXES or cls._has_any(
             body_upper,
-            cls.BOND1_EFO_KEYWORDS | cls.BOND1_COMMON_KEYWORDS | cls.BOND1_FORCE_KEYWORDS | cls.BOND1_USG_KEYWORDS | cls.BOND1_SCRUB_KEYWORDS,
+            cls.BOND1_EFO_KEYWORDS
+            | cls.BOND1_COMMON_KEYWORDS
+            | cls.BOND1_FORCE_KEYWORDS
+            | cls.BOND1_USG_KEYWORDS
+            | cls.BOND1_SCRUB_KEYWORDS,
         ):
             return "bond1"
 
@@ -360,54 +452,75 @@ class ParamClassifier:
         return "bond"
 
     @classmethod
-    def _classify_prm(cls, pp_body: str) -> tuple[str | None, str | None]:
+    def _heuristic_prm_semantics(cls, pp_body: str) -> ParamSemantics:
         prefix = cls._prefix(pp_body)
         if not prefix:
-            return None, None
+            return ParamSemantics()
 
         body_upper = cls._normalized_body(pp_body)
         stage = cls._prm_stage(prefix, body_upper)
         if stage == "_unmapped":
-            return "_unmapped", prefix.lower()
+            return ParamSemantics(stage="_unmapped", category=prefix.lower())
         if stage in {"bond1", "bump"}:
-            return stage, cls._bond1_category(body_upper)
+            return ParamSemantics(stage=stage, category=cls._bond1_category(body_upper))
         if stage == "bond2":
-            return stage, cls._bond2_category(body_upper)
+            return ParamSemantics(stage=stage, category=cls._bond2_category(body_upper))
         if stage == "loop":
-            return stage, cls._loop_category(prefix, body_upper)
+            return ParamSemantics(stage=stage, category=cls._loop_category(prefix, body_upper))
         if stage == "bits_other":
-            return stage, cls._bits_category(body_upper)
+            return ParamSemantics(stage=stage, category=cls._bits_category(body_upper))
         if stage == "quick_adjust":
-            return stage, cls._quick_adjust_category(body_upper)
-        return stage, None
+            return ParamSemantics(stage=stage, category=cls._quick_adjust_category(body_upper))
+        return ParamSemantics(stage=stage)
 
     @classmethod
-    def classify(cls, param_name: str, file_type: str) -> tuple[str | None, str | None]:
+    def _classify_prm_semantics(cls, pp_body: str) -> ParamSemantics:
+        heuristic = cls._heuristic_prm_semantics(pp_body)
+        rule = cls._match_prm_rule(pp_body)
+        if rule is None:
+            return heuristic
+        return ParamSemantics(
+            stage=rule.stage if rule.stage is not None else heuristic.stage,
+            category=rule.category if rule.category is not None else heuristic.category,
+            family=rule.family,
+            feature=rule.feature,
+            instance=rule.instance,
+            description=rule.description,
+            tunable=rule.tunable,
+        )
+
+    @classmethod
+    def classify_semantics(cls, param_name: str, file_type: str) -> ParamSemantics:
         normalized_name = (param_name or "").strip()
         normalized_type = (file_type or "").strip().upper()
 
         if normalized_type in {"LF", "MAG"}:
-            return None, None
+            return ParamSemantics()
 
         role, pp_body = cls._split_name(normalized_name)
         body_upper = cls._normalized_body(pp_body)
 
         if (role or "").startswith("parms") or normalized_type == "PRM":
-            return cls._classify_prm(pp_body)
+            return cls._classify_prm_semantics(pp_body)
 
         if role == "mag_handler":
-            return None, cls._keyword_category(body_upper, cls.MAG_HANDLER_KEYWORD_MAP)
+            return ParamSemantics(category=cls._keyword_category(body_upper, cls.MAG_HANDLER_KEYWORD_MAP))
 
         if role == "workholder":
-            return None, cls._keyword_category(body_upper, cls.WORKHOLDER_KEYWORD_MAP)
+            return ParamSemantics(category=cls._keyword_category(body_upper, cls.WORKHOLDER_KEYWORD_MAP))
 
         if role == "die_ref":
-            return None, cls._keyword_category(body_upper, cls.DIE_REF_KEYWORD_MAP)
+            return ParamSemantics(category=cls._keyword_category(body_upper, cls.DIE_REF_KEYWORD_MAP))
 
         if role == "lead_ref":
-            return None, cls._keyword_category(body_upper, cls.LEAD_REF_KEYWORD_MAP)
+            return ParamSemantics(category=cls._keyword_category(body_upper, cls.LEAD_REF_KEYWORD_MAP))
 
         if normalized_type == "HB":
-            return None, cls._keyword_category(body_upper, cls.HB_KEYWORD_MAP)
+            return ParamSemantics(category=cls._keyword_category(body_upper, cls.HB_KEYWORD_MAP))
 
-        return None, None
+        return ParamSemantics()
+
+    @classmethod
+    def classify(cls, param_name: str, file_type: str) -> tuple[str | None, str | None]:
+        semantics = cls.classify_semantics(param_name, file_type)
+        return semantics.stage, semantics.category

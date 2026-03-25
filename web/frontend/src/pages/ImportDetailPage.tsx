@@ -26,6 +26,8 @@ type ParamFilterState = {
   paramGroup: string
   stage: string
   category: string
+  family: string
+  feature: string
   search: string
 }
 
@@ -57,12 +59,25 @@ function formatStageLabel(value: string) {
   return value
 }
 
+function humanizeSemanticLabel(value: string) {
+  return value
+    .split('_')
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ')
+}
+
 function toParamTableRows(rows: ParamRow[]) {
   return rows.map((row) => ({
     file_type: row.file_type,
     param_group: row.param_group ? formatParamGroupLabel(row.param_group) : '',
     stage: row.stage ? formatStageLabel(row.stage) : '',
-    category: row.category ?? '',
+    category: row.category ? humanizeSemanticLabel(row.category) : '',
+    family: row.family ? humanizeSemanticLabel(row.family) : '',
+    feature: row.feature ? humanizeSemanticLabel(row.feature) : '',
+    instance: row.instance ?? '',
+    tunable: row.tunable == null ? '' : row.tunable ? 'Yes' : 'No',
+    description: row.description ?? '',
     param_name: displayParamName(row.param_name, row.file_type),
     param_value: row.param_value ?? '',
     unit: row.unit ?? '',
@@ -102,6 +117,12 @@ function matchesFilters(row: ParamRow, filters: ParamFilterState, skip?: keyof P
   if (skip !== 'paramGroup' && filters.paramGroup && row.param_group !== filters.paramGroup) {
     return false
   }
+  if (skip !== 'family' && filters.family && row.family !== filters.family) {
+    return false
+  }
+  if (skip !== 'feature' && filters.feature && row.feature !== filters.feature) {
+    return false
+  }
   if (skip !== 'stage' && filters.stage && row.stage !== filters.stage) {
     return false
   }
@@ -114,7 +135,10 @@ function matchesFilters(row: ParamRow, filters: ParamFilterState, skip?: keyof P
   return true
 }
 
-function buildFacetOptions(rows: ParamRow[], key: 'param_group' | 'stage' | 'category'): CountOption[] {
+function buildFacetOptions(
+  rows: ParamRow[],
+  key: 'param_group' | 'stage' | 'category' | 'family' | 'feature',
+): CountOption[] {
   const counts = new Map<string, number>()
   for (const row of rows) {
     const value = row[key]
@@ -139,6 +163,8 @@ export function ImportDetailPage() {
   const [facets, setFacets] = useState<ParamFacets | null>(null)
   const [selectedFileType, setSelectedFileType] = useState('')
   const [selectedParamGroup, setSelectedParamGroup] = useState('')
+  const [selectedFamily, setSelectedFamily] = useState('')
+  const [selectedFeature, setSelectedFeature] = useState('')
   const [selectedStage, setSelectedStage] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('')
   const [paramSearch, setParamSearch] = useState('')
@@ -155,11 +181,13 @@ export function ImportDetailPage() {
   const filters = useMemo<ParamFilterState>(
     () => ({
       paramGroup: selectedParamGroup,
+      family: selectedFamily,
+      feature: selectedFeature,
       stage: selectedStage,
       category: selectedCategory,
       search: paramSearch,
     }),
-    [paramSearch, selectedCategory, selectedParamGroup, selectedStage],
+    [paramSearch, selectedCategory, selectedFeature, selectedFamily, selectedParamGroup, selectedStage],
   )
 
   useEffect(() => {
@@ -174,6 +202,8 @@ export function ImportDetailPage() {
     setSourceRows([])
     setSelectedFileType('')
     setSelectedParamGroup('')
+    setSelectedFamily('')
+    setSelectedFeature('')
     setSelectedStage('')
     setSelectedCategory('')
     setParamSearch('')
@@ -286,6 +316,20 @@ export function ImportDetailPage() {
     () => buildFacetOptions(sourceRows.filter((row) => matchesFilters(row, filters, 'paramGroup')), 'param_group'),
     [filters, sourceRows],
   )
+  const familyOptions = useMemo(
+    () =>
+      supportsProcessFilters
+        ? buildFacetOptions(sourceRows.filter((row) => matchesFilters(row, filters, 'family')), 'family')
+        : [],
+    [filters, sourceRows, supportsProcessFilters],
+  )
+  const featureOptions = useMemo(
+    () =>
+      supportsProcessFilters
+        ? buildFacetOptions(sourceRows.filter((row) => matchesFilters(row, filters, 'feature')), 'feature')
+        : [],
+    [filters, sourceRows, supportsProcessFilters],
+  )
   const stageOptions = useMemo(
     () =>
       supportsProcessFilters
@@ -307,6 +351,20 @@ export function ImportDetailPage() {
       setPage(1)
     }
   }, [groupOptions, selectedParamGroup])
+
+  useEffect(() => {
+    if (selectedFamily && !familyOptions.some((option) => option.value === selectedFamily)) {
+      setSelectedFamily('')
+      setPage(1)
+    }
+  }, [familyOptions, selectedFamily])
+
+  useEffect(() => {
+    if (selectedFeature && !featureOptions.some((option) => option.value === selectedFeature)) {
+      setSelectedFeature('')
+      setPage(1)
+    }
+  }, [featureOptions, selectedFeature])
 
   useEffect(() => {
     if (selectedStage && !stageOptions.some((option) => option.value === selectedStage)) {
@@ -393,6 +451,8 @@ export function ImportDetailPage() {
 
   const resetParamFilters = () => {
     setSelectedParamGroup('')
+    setSelectedFamily('')
+    setSelectedFeature('')
     setSelectedStage('')
     setSelectedCategory('')
     setParamSearch('')
@@ -476,6 +536,8 @@ export function ImportDetailPage() {
                   onClick={() => {
                     setSelectedFileType(option.value)
                     setSelectedParamGroup('')
+                    setSelectedFamily('')
+                    setSelectedFeature('')
                     setSelectedStage('')
                     setSelectedCategory('')
                     setParamSearch('')
@@ -507,6 +569,38 @@ export function ImportDetailPage() {
               </select>
               {supportsProcessFilters ? (
                 <select
+                  value={selectedFamily}
+                  onChange={(e) => {
+                    setSelectedFamily(e.target.value)
+                    setPage(1)
+                  }}
+                >
+                  <option value="">All families</option>
+                  {familyOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {humanizeSemanticLabel(option.value)} ({option.count})
+                    </option>
+                  ))}
+                </select>
+              ) : null}
+              {supportsProcessFilters ? (
+                <select
+                  value={selectedFeature}
+                  onChange={(e) => {
+                    setSelectedFeature(e.target.value)
+                    setPage(1)
+                  }}
+                >
+                  <option value="">All features</option>
+                  {featureOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {humanizeSemanticLabel(option.value)} ({option.count})
+                    </option>
+                  ))}
+                </select>
+              ) : null}
+              {supportsProcessFilters ? (
+                <select
                   value={selectedStage}
                   onChange={(e) => {
                     setSelectedStage(e.target.value)
@@ -532,7 +626,7 @@ export function ImportDetailPage() {
                   <option value="">All parameter classes</option>
                   {categoryOptions.map((option) => (
                     <option key={option.value} value={option.value}>
-                      {option.value} ({option.count})
+                      {humanizeSemanticLabel(option.value)} ({option.count})
                     </option>
                   ))}
                 </select>

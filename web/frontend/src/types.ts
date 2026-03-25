@@ -23,6 +23,11 @@ export type ParamRow = {
   param_group: string | null
   stage: string | null
   category: string | null
+  family: string | null
+  feature: string | null
+  instance: string | null
+  description: string | null
+  tunable: boolean | null
 }
 
 export type CountOption = {
@@ -50,6 +55,8 @@ export type ParamFacets = {
   param_groups_by_file_type: Record<string, CountOption[]>
   stages_by_file_type: Record<string, CountOption[]>
   categories_by_file_type: Record<string, CountOption[]>
+  families_by_file_type: Record<string, CountOption[]>
+  features_by_file_type: Record<string, CountOption[]>
 }
 
 export type ParamPage = {

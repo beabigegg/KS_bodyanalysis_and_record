@@ -55,10 +55,9 @@ def _semantic_param_row(row: Any, wire_group_map: dict[str, int]) -> dict[str, A
     item = row_to_dict(row)
     param_name = str(item.get("param_name") or "")
     file_type = str(item.get("file_type") or "")
-    stage, category = ParamClassifier.classify(param_name, file_type)
+    semantics = ParamClassifier.classify_semantics(param_name, file_type)
     item["param_group"] = _param_group(param_name, wire_group_map)
-    item["stage"] = stage
-    item["category"] = category
+    item.update(semantics.as_dict())
     return item
 
 
@@ -173,6 +172,8 @@ def get_import_param_facets(import_id: int, conn: Connection = Depends(get_conne
     param_groups_by_type: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
     stages_by_type: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
     categories_by_type: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
+    families_by_type: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
+    features_by_type: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
 
     for row in rows:
         file_type = str(row["file_type"])
@@ -190,6 +191,14 @@ def get_import_param_facets(import_id: int, conn: Connection = Depends(get_conne
         if isinstance(category, str) and category:
             categories_by_type[file_type][category] += 1
 
+        family = row.get("family")
+        if isinstance(family, str) and family:
+            families_by_type[file_type][family] += 1
+
+        feature = row.get("feature")
+        if isinstance(feature, str) and feature:
+            features_by_type[file_type][feature] += 1
+
     return {
         "data": {
             "file_types": _facet_items(file_type_counts),
@@ -204,6 +213,14 @@ def get_import_param_facets(import_id: int, conn: Connection = Depends(get_conne
             "categories_by_file_type": {
                 key: _facet_items(dict(value))
                 for key, value in sorted(categories_by_type.items())
+            },
+            "families_by_file_type": {
+                key: _facet_items(dict(value))
+                for key, value in sorted(families_by_type.items())
+            },
+            "features_by_file_type": {
+                key: _facet_items(dict(value))
+                for key, value in sorted(features_by_type.items())
             },
         },
         "total": len(rows),
@@ -281,6 +298,8 @@ def get_import_params(
     param_group: str | None = None,
     stage: str | None = None,
     category: str | None = None,
+    family: str | None = None,
+    feature: str | None = None,
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=100, ge=1, le=500),
     conn: Connection = Depends(get_connection),
@@ -294,6 +313,10 @@ def get_import_params(
         rows = [row for row in rows if row.get("stage") == stage]
     if category:
         rows = [row for row in rows if row.get("category") == category]
+    if family:
+        rows = [row for row in rows if row.get("family") == family]
+    if feature:
+        rows = [row for row in rows if row.get("feature") == feature]
 
     total = len(rows)
     start = (page - 1) * page_size

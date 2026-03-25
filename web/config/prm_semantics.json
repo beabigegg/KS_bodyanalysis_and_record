@@ -1,0 +1,340 @@
+{
+  "rules": [
+    {
+      "pattern": "^SF(?P<instance>\\d+)_Mode$",
+      "stage": "bits_other",
+      "family": "safety_fence",
+      "feature": "mode",
+      "description": "Safety Fence operating mode",
+      "tunable": true,
+      "instance_template": "sf{instance}"
+    },
+    {
+      "pattern": "^SF(?P<instance>\\d+)_Pullout_Angle$",
+      "stage": "bits_other",
+      "family": "safety_fence",
+      "feature": "pullout_angle",
+      "description": "Safety Fence pullout angle",
+      "tunable": true,
+      "instance_template": "sf{instance}"
+    },
+    {
+      "pattern": "^SF(?P<instance>\\d+)_Pullout_Clamp$",
+      "stage": "bits_other",
+      "family": "safety_fence",
+      "feature": "pullout_clamp",
+      "description": "Safety Fence pullout clamp state",
+      "tunable": true,
+      "instance_template": "sf{instance}"
+    },
+    {
+      "pattern": "^SF(?P<instance>\\d+)_Pullout_Dist$",
+      "stage": "bits_other",
+      "family": "safety_fence",
+      "feature": "pullout_dist",
+      "description": "Safety Fence pullout distance",
+      "tunable": true,
+      "instance_template": "sf{instance}"
+    },
+    {
+      "pattern": "^SF(?P<instance>\\d+)_Rtn_Control$",
+      "stage": "bits_other",
+      "family": "safety_fence",
+      "feature": "return_control",
+      "description": "Safety Fence return control",
+      "tunable": true,
+      "instance_template": "sf{instance}"
+    },
+    {
+      "pattern": "^SF(?P<instance>\\d+)_Bend_Angle$",
+      "stage": "bits_other",
+      "family": "safety_fence",
+      "feature": "bend_angle",
+      "description": "Safety Fence bend angle",
+      "tunable": true,
+      "instance_template": "sf{instance}"
+    },
+    {
+      "pattern": "^SF(?P<instance>\\d+)_Bend_Dist$",
+      "stage": "bits_other",
+      "family": "safety_fence",
+      "feature": "bend_dist",
+      "description": "Safety Fence bend distance",
+      "tunable": true,
+      "instance_template": "sf{instance}"
+    },
+    {
+      "pattern": "^SF(?P<instance>\\d+)_Bends$",
+      "stage": "bits_other",
+      "family": "safety_fence",
+      "feature": "bends",
+      "description": "Safety Fence bend count",
+      "tunable": true,
+      "instance_template": "sf{instance}"
+    },
+    {
+      "pattern": "^SL(?P<instance>\\d+)_Arc_Type$",
+      "stage": "loop",
+      "family": "smart_loop",
+      "feature": "arc_type",
+      "description": "Smart Loop arc type",
+      "tunable": true,
+      "instance_template": "sl{instance}"
+    },
+    {
+      "pattern": "^SL(?P<instance>\\d+)_Mode$",
+      "stage": "loop",
+      "family": "smart_loop",
+      "feature": "mode",
+      "description": "Smart Loop mode",
+      "tunable": true,
+      "instance_template": "sl{instance}"
+    },
+    {
+      "pattern": "^SL(?P<instance>\\d+)_Angle$",
+      "stage": "loop",
+      "family": "smart_loop",
+      "feature": "angle",
+      "description": "Smart Loop angle",
+      "tunable": true,
+      "instance_template": "sl{instance}"
+    },
+    {
+      "pattern": "^SL(?P<instance>\\d+)_Factor$",
+      "stage": "loop",
+      "family": "smart_loop",
+      "feature": "factor",
+      "description": "Smart Loop factor",
+      "tunable": true,
+      "instance_template": "sl{instance}"
+    },
+    {
+      "pattern": "^SL(?P<instance>\\d+)_Scalar$",
+      "stage": "loop",
+      "family": "smart_loop",
+      "feature": "scalar",
+      "description": "Smart Loop scalar",
+      "tunable": true,
+      "instance_template": "sl{instance}"
+    },
+    {
+      "pattern": "^GEN_LIA_[12]$",
+      "family": "general",
+      "feature": "lead_impression_angle",
+      "description": "Lead impression angle",
+      "tunable": true
+    },
+    {
+      "pattern": "^GEN_LIR_[12]$",
+      "family": "general",
+      "feature": "lead_impression_radius",
+      "description": "Lead impression radius",
+      "tunable": true
+    },
+    {
+      "pattern": "^GEN_Pro(Type|Ag_Type|Au_Type)_Bond2$",
+      "stage": "bond2",
+      "family": "general",
+      "feature": "bond2_algorithm_type",
+      "description": "General Bond2 algorithm type",
+      "tunable": true
+    },
+    {
+      "pattern": "^GEN_Rtn_Arc$",
+      "stage": "loop",
+      "family": "general",
+      "feature": "return_arc",
+      "description": "Return arc enable",
+      "tunable": true
+    },
+    {
+      "pattern": "^GEN_SSB_(Bond_Window|Constant_Mode|Wire_Length)$",
+      "stage": "bond2",
+      "family": "general",
+      "feature": "ssb_setting",
+      "description": "Side-by-side bond setting",
+      "tunable": true
+    },
+    {
+      "pattern": "^GEN_TailTear_(Mode|Clamp|Cycles|Depth|Dir|Dist|Ht)$",
+      "stage": "bond2",
+      "family": "general",
+      "feature": "tail_tear_setting",
+      "description": "General tail tear setting",
+      "tunable": true
+    },
+    {
+      "pattern": "^Pro(Au|Ag)_Bond1_(Mode|Type)$",
+      "stage": "bond1",
+      "family": "pro_algorithm",
+      "feature": "bond1_algorithm",
+      "description": "Bond1 precious-metal algorithm selection",
+      "tunable": true
+    },
+    {
+      "pattern": "^ProCu(?:4|5)?_(Type|Mode|Splash_Option)$",
+      "stage": "bond1",
+      "family": "pro_algorithm",
+      "feature": "bond1_algorithm",
+      "description": "Bond1 copper algorithm selection",
+      "tunable": true
+    },
+    {
+      "pattern": "^ProWedge_Type_Bond1$",
+      "stage": "bond1",
+      "family": "pro_algorithm",
+      "feature": "wedge_algorithm",
+      "description": "Bond1 wedge algorithm type",
+      "tunable": true
+    },
+    {
+      "pattern": "^ProType_Conv$",
+      "stage": "bond1",
+      "family": "pro_algorithm",
+      "feature": "conversion_flag",
+      "description": "Internal ProType conversion flag",
+      "tunable": false
+    },
+    {
+      "pattern": "^ProBond_(Freq_Conv|XY_Dist)$",
+      "stage": "bond1",
+      "family": "pro_algorithm",
+      "feature": "probond_setting",
+      "description": "ProBond conversion or distance setting",
+      "tunable": true
+    },
+    {
+      "pattern": "^PSP_(Boundary|PeelReduct|Ag_Parm)$",
+      "stage": "bond2",
+      "family": "pro_algorithm",
+      "feature": "pro_stitch_plus",
+      "description": "ProStitch Plus setting",
+      "tunable": true
+    },
+    {
+      "pattern": "^AWFO_(BrokenWirePct|MissingWirePct|samplingEnable|End)$",
+      "stage": "bits_other",
+      "family": "awfo",
+      "feature": "wire_feed_monitor",
+      "description": "Auto wire feed off threshold or sampling setting",
+      "tunable": true
+    },
+    {
+      "pattern": "^WBMS_(Current|enable|Polarity|Thresh_AC|DCHi|DCLo)$",
+      "stage": "bits_other",
+      "family": "wbms",
+      "feature": "bond_monitor",
+      "description": "Wire Bond Monitor System setting",
+      "tunable": true
+    },
+    {
+      "pattern": "^LGTL_(height|NumSamples|percentage)$",
+      "stage": "bits_other",
+      "family": "long_tail_bits",
+      "feature": "long_tail_detection",
+      "description": "Long tail BITS detection setting",
+      "tunable": true
+    },
+    {
+      "pattern": "^Pull_(CV|Dist|Speed|Test_Enable)$",
+      "stage": "bits_other",
+      "family": "pull_test",
+      "feature": "pull_test",
+      "description": "In-line pull test setting",
+      "tunable": true
+    },
+    {
+      "pattern": "^PINF_(Max|Min|Step_FC_2)$",
+      "stage": "bond2",
+      "family": "pro_input_force",
+      "feature": "force_search",
+      "description": "Bond2 automatic force search setting",
+      "tunable": true
+    },
+    {
+      "pattern": "^Overbend_(Scale|Scale1|Scale2|Scale3|Scale_2)$",
+      "stage": "loop",
+      "family": "loop_compensation",
+      "feature": "overbend",
+      "description": "Loop overbend compensation",
+      "tunable": true
+    },
+    {
+      "pattern": "^Lean_(Angle_Mode|Comp_Angle|Scale)$",
+      "stage": "loop",
+      "family": "loop_compensation",
+      "feature": "lean",
+      "description": "Loop lean compensation",
+      "tunable": true
+    },
+    {
+      "pattern": "^Rev(?P<instance>[12])_(XY|Z1|Z2)$",
+      "stage": "loop",
+      "family": "loop_compensation",
+      "feature": "reverse_motion",
+      "description": "Reverse motion setting",
+      "tunable": true,
+      "instance_template": "rev{instance}"
+    },
+    {
+      "pattern": "^Neck_(L2S_Ht|Pull_Ht)$",
+      "stage": "loop",
+      "family": "loop_compensation",
+      "feature": "neck",
+      "description": "Loop neck height setting",
+      "tunable": true
+    },
+    {
+      "pattern": "^TailTear_(Conv|Depth2|Dist2|RtnDist2)$",
+      "stage": "bond2",
+      "family": "tail_tear",
+      "feature": "tail_tear",
+      "description": "Tail tear extended setting",
+      "tunable": true
+    },
+    {
+      "pattern": "^Cont_(Delay1|X_Pos|Y_Pos|Z_Pos)$",
+      "family": "contamination_bonding",
+      "feature": "position",
+      "description": "Contamination bonding position setting",
+      "tunable": true
+    },
+    {
+      "pattern": "^CSP_(SF_2|XY_Inflection|Z_Inflection)$",
+      "stage": "bits_other",
+      "family": "csp",
+      "feature": "package_specific",
+      "description": "CSP package-specific safety or inflection setting",
+      "tunable": true
+    },
+    {
+      "pattern": "^Damp_(Gain|Time_1|Time_2)$",
+      "family": "damp",
+      "feature": "damping",
+      "description": "Damping gain or timing setting",
+      "tunable": true
+    },
+    {
+      "pattern": "^FireTime(?:_CuAuto)?$",
+      "stage": "bond1",
+      "family": "efo",
+      "feature": "fire_time",
+      "description": "EFO fire time setting",
+      "tunable": true
+    },
+    {
+      "pattern": "^.+_Comp$",
+      "family": "internal_flag",
+      "feature": "compatibility_flag",
+      "description": "Internal compatibility marker",
+      "tunable": false
+    },
+    {
+      "pattern": "^.+_Conv$",
+      "family": "internal_flag",
+      "feature": "conversion_flag",
+      "description": "Internal conversion marker",
+      "tunable": false
+    }
+  ]
+}

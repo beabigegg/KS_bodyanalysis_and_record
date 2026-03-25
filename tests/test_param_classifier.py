@@ -57,6 +57,25 @@ class ParamClassifierTests(unittest.TestCase):
         stage, category = ParamClassifier.classify("parms/Bal_Loop_Percent", "PRM")
         self.assertEqual((stage, category), ("loop", "balance"))
 
+    def test_prm_extra_angle_maps_to_loop(self) -> None:
+        stage, category = ParamClassifier.classify("parms/ExtraAngle_Seg_01", "PRM")
+        self.assertEqual((stage, category), ("loop", "shaping"))
+
+    def test_prm_safety_fence_semantics_mapping(self) -> None:
+        semantics = ParamClassifier.classify_semantics("parms/SF10_Pullout_Dist", "PRM")
+        self.assertEqual(semantics.stage, "bits_other")
+        self.assertEqual(semantics.category, "pullout_dist")
+        self.assertEqual(semantics.family, "safety_fence")
+        self.assertEqual(semantics.feature, "pullout_dist")
+        self.assertEqual(semantics.instance, "sf10")
+        self.assertTrue(semantics.tunable)
+
+    def test_prm_internal_flag_marked_non_tunable(self) -> None:
+        semantics = ParamClassifier.classify_semantics("parms/SomeSetting_Conv", "PRM")
+        self.assertEqual(semantics.family, "internal_flag")
+        self.assertEqual(semantics.feature, "conversion_flag")
+        self.assertFalse(semantics.tunable)
+
     def test_prm_bond2_tail_scrub_mapping(self) -> None:
         stage, category = ParamClassifier.classify("parms/Tail_Scrub_Force", "PRM")
         self.assertEqual((stage, category), ("bond2", "tail_scrub"))
