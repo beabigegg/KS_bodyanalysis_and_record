@@ -5,6 +5,9 @@ import re
 
 from parsers.base import BaseParser, ParseResult
 
+# WIR group declaration: group <stem.PRM> <wir_group_no> [other args...]
+_WIR_GROUP_RE = re.compile(r"^group\s+\S+\.PRM\s+\d+", re.IGNORECASE)
+
 # Block headers that contain binary data — skip until matching closing brace
 _BINARY_BLOCK_RE = re.compile(r"^data\s+\d+\s*\{$", re.IGNORECASE)
 
@@ -51,6 +54,10 @@ class SectionedParser(BaseParser):
 
                 if file_type == "WIR" and line.startswith("connect"):
                     self._parse_connect_line(line, context_stack, result, file_type)
+                    continue
+
+                if file_type == "WIR" and _WIR_GROUP_RE.match(line):
+                    self._parse_wir_group_line(line, context_stack, result, file_type)
                     continue
 
                 entry = self._parse_key_value(line)
@@ -172,6 +179,36 @@ class SectionedParser(BaseParser):
                     "default_value": None,
                 }
             )
+
+    @staticmethod
+    def _parse_wir_group_line(
+        line: str,
+        context_stack: list[str],
+        result: ParseResult,
+        file_type: str,
+    ) -> None:
+        """Parse WIR group declaration: group <stem.PRM> <wir_group_no> [args...]
+
+        Stores as param: group_<STEM>.wir_group_no = <wir_group_no>
+        Example: "group CJ621A20.PRM 2 1 3 2 3 2" → "group_CJ621A20.wir_group_no" = "2"
+        """
+        tokens = line.split()
+        if len(tokens) < 3:
+            return
+        stem = Path(tokens[1]).stem          # "CJ621A20"
+        wir_group_no = tokens[2]             # "2"
+        base = SectionedParser._join_name(context_stack, f"group_{stem}")
+        result.params.append(
+            {
+                "file_type": file_type,
+                "param_name": f"{base}.wir_group_no",
+                "param_value": wir_group_no,
+                "unit": None,
+                "min_value": None,
+                "max_value": None,
+                "default_value": None,
+            }
+        )
 
     @staticmethod
     def _to_bsg_row(param_name: str, value: str) -> dict[str, str] | None:

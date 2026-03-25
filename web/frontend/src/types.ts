@@ -20,6 +20,50 @@ export type ParamRow = {
   min_value: string | null
   max_value: string | null
   default_value: string | null
+  param_group: string | null
+  stage: string | null
+  category: string | null
+}
+
+export type CountOption = {
+  value: string
+  count: number
+}
+
+export type ImportDetailSummary = {
+  import_id: number
+  params_total: number
+  file_types: Array<{
+    file_type: string
+    count: number
+  }>
+  sections: {
+    has_app_spec: boolean
+    bsg_rows: number
+    rpm_limits: number
+    rpm_reference: number
+  }
+}
+
+export type ParamFacets = {
+  file_types: CountOption[]
+  param_groups_by_file_type: Record<string, CountOption[]>
+  stages_by_file_type: Record<string, CountOption[]>
+  categories_by_file_type: Record<string, CountOption[]>
+}
+
+export type ParamPage = {
+  rows: ParamRow[]
+  page: number
+  page_size: number
+  total_pages: number
+}
+
+export type WirGroupEntry = {
+  parms_role: string
+  wir_group_no: number
+  prm_stem: string | null
+  wire_site_count: number | null
 }
 
 export type CompareRow = {
@@ -28,6 +72,7 @@ export type CompareRow = {
   stage: string | null
   category: string | null
   param_group: string | null
+  wir_group_no: number | null
   [key: string]: unknown
 }
 
@@ -38,4 +83,5 @@ export type ComparePayload = {
   bsg: CompareRow[]
   rpm_limits: CompareRow[]
   rpm_reference: CompareRow[]
+  wire_group_context: Record<string, WirGroupEntry[]>
 }

@@ -18,9 +18,25 @@ from db.schema import (  # type: ignore[import-not-found]
     recipe_params,
     recipe_rpm_limits,
     recipe_rpm_reference,
+    recipe_wir_group_map,
 )
 
 router = APIRouter(prefix="/api/compare", tags=["compare"])
+
+
+def _fetch_wir_group_map(
+    conn: Connection,
+    import_ids: list[int],
+) -> dict[tuple[int, str], int]:
+    """Return {(import_id, parms_role): wir_group_no} for the given imports."""
+    stmt = select(recipe_wir_group_map).where(
+        recipe_wir_group_map.c.recipe_import_id.in_(import_ids)
+    )
+    result: dict[tuple[int, str], int] = {}
+    for row in conn.execute(stmt).all():
+        d = row_to_dict(row)
+        result[(int(d["recipe_import_id"]), str(d["parms_role"]))] = int(d["wir_group_no"])
+    return result
 
 
 class CompareRequest(BaseModel):
@@ -42,13 +58,14 @@ def _diff_rows(
     import_ids: list[int],
     show_all: bool,
     include_classification: bool = False,
+    wir_group_map: dict[tuple[int, str], int] | None = None,
 ) -> list[dict[str, Any]]:
     """Build pivoted diff rows from source_rows.
 
     include_classification: when True, each row is enriched with ``stage``,
-    ``category``, and ``param_group`` fields.  For parms_N groups, diff is
-    computed only across imports that actually have that group, so machines
-    without a particular group do not count as a value difference.
+    ``category``, ``param_group``, and ``wir_group_no`` fields.  For parms_N
+    groups, diff is computed only across imports that actually have that group,
+    so machines without a particular group do not count as a value difference.
     """
     # Pre-compute which parms groups each import owns (used for group-aware diff).
     parms_groups_per_import: dict[int, set[str]] = {}
@@ -101,6 +118,14 @@ def _diff_rows(
             )
             item["stage"] = stage
             item["category"] = category
+            wir_group_no: int | None = None
+            if wir_group_map is not None and param_group is not None:
+                for imp_id in import_ids:
+                    v = wir_group_map.get((imp_id, param_group))
+                    if v is not None:
+                        wir_group_no = v
+                        break
+            item["wir_group_no"] = wir_group_no
         output.append(item)
     return output
 
@@ -170,12 +195,14 @@ def compare_recipe_params(
     if payload.file_type:
         param_stmt = param_stmt.where(recipe_params.c.file_type.ilike(f"%{payload.file_type}%"))
     param_rows = [row_to_dict(row) for row in conn.execute(param_stmt).all()]
+    wgm = _fetch_wir_group_map(conn, payload.import_ids)
     param_diff = _diff_rows(
         ["file_type", "param_name"],
         param_rows,
         payload.import_ids,
         payload.show_all,
         include_classification=True,
+        wir_group_map=wgm,
     )
 
     app_stmt = select(recipe_app_spec).where(recipe_app_spec.c.recipe_import_id.in_(payload.import_ids))
@@ -235,6 +262,25 @@ def compare_recipe_params(
         payload.show_all,
     )
 
+    # Build wire_group_context: {import_id_str: [WirGroupEntry, ...]}
+    wgm_stmt = select(recipe_wir_group_map).where(
+        recipe_wir_group_map.c.recipe_import_id.in_(payload.import_ids)
+    )
+    wire_group_context: dict[str, list[dict[str, Any]]] = {
+        str(imp_id): [] for imp_id in payload.import_ids
+    }
+    for row in conn.execute(wgm_stmt).all():
+        d = row_to_dict(row)
+        key = str(int(d["recipe_import_id"]))
+        wire_group_context[key].append(
+            {
+                "parms_role": d["parms_role"],
+                "wir_group_no": d["wir_group_no"],
+                "prm_stem": d.get("prm_stem"),
+                "wire_site_count": d.get("wire_site_count"),
+            }
+        )
+
     return {
         "data": {
             "imports": imports,
@@ -243,6 +289,7 @@ def compare_recipe_params(
             "bsg": bsg_diff,
             "rpm_limits": rpm_limits_diff,
             "rpm_reference": rpm_reference_diff,
+            "wire_group_context": wire_group_context,
         },
         "total": len(param_diff),
     }

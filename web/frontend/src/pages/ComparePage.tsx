@@ -204,7 +204,7 @@ export function ComparePage() {
           {
             title: 'Parameter Diff',
             count: diffCount(filteredParams),
-            content: <GroupedDiffTable rows={filteredParams} importIds={selectedIds} idToLabel={idToLabel} />,
+            content: <GroupedDiffTable rows={filteredParams} importIds={selectedIds} idToLabel={idToLabel} wireGroupContext={result.wire_group_context} />,
           },
           {
             title: 'APP Diff',

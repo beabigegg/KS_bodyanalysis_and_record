@@ -148,6 +148,19 @@ recipe_rpm_reference = Table(
 
 Index("idx_ksbody_rpm_reference_import", recipe_rpm_reference.c.recipe_import_id)
 
+recipe_wir_group_map = Table(
+    "ksbody_wir_group_map",
+    metadata,
+    Column("id", BIGINT, primary_key=True, autoincrement=True),
+    Column("recipe_import_id", BIGINT, ForeignKey("ksbody_recipe_import.id"), nullable=False),
+    Column("parms_role", VARCHAR(32), nullable=False),
+    Column("wir_group_no", INTEGER, nullable=False),
+    Column("prm_stem", VARCHAR(128), nullable=True),
+    Column("wire_site_count", INTEGER, nullable=True),
+)
+
+Index("idx_ksbody_wir_group_map_import", recipe_wir_group_map.c.recipe_import_id)
+
 ALL_TABLES = [
     recipe_import,
     recipe_params,
@@ -155,4 +168,5 @@ ALL_TABLES = [
     recipe_bsg,
     recipe_rpm_limits,
     recipe_rpm_reference,
+    recipe_wir_group_map,
 ]

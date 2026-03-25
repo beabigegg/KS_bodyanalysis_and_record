@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 import logging
+import re
 
 from db.repository import RecipeRepository
 from extractor.decompress import extract_gzip_tar
@@ -102,6 +103,74 @@ def _params_to_value_map(rows: list[dict[str, object]]) -> dict[str, object]:
     return {str(row.get("param_name") or ""): row.get("param_value") for row in rows}
 
 
+def _build_wir_group_map(
+    wir_raw_params: list[dict[str, object]],
+    registry: ComponentRegistry | None,
+) -> list[dict[str, object]]:
+    """Derive wir_group_map rows from raw (un-prefixed) WIR params and the BND registry.
+
+    Returns a list of dicts suitable for insertion into ksbody_wir_group_map
+    (without recipe_import_id, which is added by the repository).
+    """
+    if not wir_raw_params or registry is None or not registry.parms_list:
+        return []
+
+    # stem_upper → wir_group_no from "group_<STEM>.wir_group_no" params
+    stem_to_group: dict[str, int] = {}
+    for p in wir_raw_params:
+        pn = str(p.get("param_name") or "")
+        m = re.search(r"group_(\w+)\.wir_group_no$", pn, re.IGNORECASE)
+        if m:
+            try:
+                stem_to_group[m.group(1).upper()] = int(str(p.get("param_value") or ""))
+            except ValueError:
+                pass
+
+    if not stem_to_group:
+        return []
+
+    # Count wire sites per wir_group_no from ordered connect lines.
+    # Connects without an explicit group field inherit the previous group (default 1).
+    connect_entries_ordered: list[str] = []
+    connect_explicit_group: dict[str, int] = {}
+    for p in wir_raw_params:
+        pn = str(p.get("param_name") or "")
+        m_id = re.search(r"connect_(\w+)\.id$", pn, re.IGNORECASE)
+        if m_id:
+            connect_entries_ordered.append(m_id.group(1))
+        m_grp = re.search(r"connect_(\w+)\.group$", pn, re.IGNORECASE)
+        if m_grp:
+            try:
+                connect_explicit_group[m_grp.group(1)] = int(str(p.get("param_value") or ""))
+            except ValueError:
+                pass
+
+    group_site_count: dict[int, int] = {}
+    last_group = 1
+    for cid in connect_entries_ordered:
+        g = connect_explicit_group.get(cid)
+        if g is not None:
+            last_group = g
+        group_site_count[last_group] = group_site_count.get(last_group, 0) + 1
+
+    # Map each parms_N entry in the BND registry to its wir_group_no.
+    rows: list[dict[str, object]] = []
+    for index, entry in enumerate(registry.parms_list, start=1):
+        parms_role = "parms" if index == 1 else f"parms_{index}"
+        wir_group_no = stem_to_group.get(entry.stem.upper())
+        if wir_group_no is None:
+            continue
+        rows.append(
+            {
+                "parms_role": parms_role,
+                "wir_group_no": wir_group_no,
+                "prm_stem": entry.stem,
+                "wire_site_count": group_site_count.get(wir_group_no),
+            }
+        )
+    return rows
+
+
 def _ordered_prms(
     pending_prms: list[_PendingPrm],
     registry: ComponentRegistry | None,
@@ -182,6 +251,7 @@ class RecipePipeline:
             )
             pending_prms: list[_PendingPrm] = []
             parsed_prm_params: dict[str, list[dict[str, object]]] = {}
+            wir_raw_params: list[dict[str, object]] = []
 
             for candidate in files:
                 parser = self.registry.parser_for_file(candidate)
@@ -227,6 +297,8 @@ class RecipePipeline:
                     )
                     parsed_prm_params[candidate.stem] = file_params
                 else:
+                    if file_type == "WIR":
+                        wir_raw_params = list(file_params)
                     prefix = role or fallback_prefix
                     if prefix:
                         file_params = _prefix_params(file_params, prefix)
@@ -262,6 +334,8 @@ class RecipePipeline:
                     prm_params = _prefix_params(prm_params, prefix)
                 params.extend(prm_params)
 
+            wir_group_map_rows = _build_wir_group_map(wir_raw_params, component_registry)
+
         # Deduplicate params: same (file_type, param_name) keeps last occurrence.
         # Role-prefixed params are deduplicated after all parser outputs are merged.
         seen: dict[tuple[str, str], int] = {}
@@ -278,6 +352,7 @@ class RecipePipeline:
                 bsg_rows=bsg_rows,
                 rpm_limits=rpm_limits,
                 rpm_reference=rpm_reference,
+                wir_group_map=wir_group_map_rows,
             )
 
         return PipelineResult(

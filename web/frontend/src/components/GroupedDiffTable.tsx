@@ -1,11 +1,12 @@
 import { useMemo } from 'react'
-import type { CompareRow } from '../types'
+import type { CompareRow, WirGroupEntry } from '../types'
 import { DiffTable } from './DiffTable'
 
 type GroupedDiffTableProps = {
   rows: CompareRow[]
   importIds: number[]
   idToLabel?: Record<string, string>
+  wireGroupContext?: Record<string, WirGroupEntry[]>
 }
 
 type CategoryGroup = {
@@ -37,12 +38,51 @@ function categoryLabel(category: string): string {
   return category
 }
 
-function paramGroupLabel(group: string | null): string {
-  if (group === null) return 'Other'
-  if (group === 'parms') return 'Param Group 1'
-  const match = /^parms_(\d+)$/.exec(group)
+function paramGroupLabel(
+  key: string | null,
+  wireGroupContext?: Record<string, WirGroupEntry[]>,
+): string {
+  if (key === null) return 'Other'
+  const wirMatch = /^wir_(\d+)$/.exec(key)
+  if (wirMatch) {
+    const groupNo = parseInt(wirMatch[1], 10)
+    if (wireGroupContext) {
+      for (const entries of Object.values(wireGroupContext)) {
+        const entry = entries.find((e) => e.wir_group_no === groupNo)
+        if (entry) {
+          const count = entry.wire_site_count
+          const siteLabel = count != null ? `${count} wire${count !== 1 ? 's' : ''}` : ''
+          return siteLabel ? `Bond Group ${groupNo} (${siteLabel})` : `Bond Group ${groupNo}`
+        }
+      }
+    }
+    return `Bond Group ${groupNo}`
+  }
+  if (key === 'parms') return 'Param Group 1'
+  const match = /^parms_(\d+)$/.exec(key)
   if (match) return `Param Group ${match[1]}`
-  return group
+  return key
+}
+
+function rowGroupKey(row: CompareRow): string | null {
+  if (typeof row.wir_group_no === 'number') {
+    return `wir_${row.wir_group_no}`
+  }
+  return typeof row.param_group === 'string' ? row.param_group : null
+}
+
+function sortGroupKeys(a: string | null, b: string | null): number {
+  if (a === null && b === null) return 0
+  if (a === null) return 1
+  if (b === null) return -1
+  const wirA = /^wir_(\d+)$/.exec(a)
+  const wirB = /^wir_(\d+)$/.exec(b)
+  if (wirA && wirB) return parseInt(wirA[1], 10) - parseInt(wirB[1], 10)
+  if (wirA) return -1
+  if (wirB) return 1
+  if (a === 'parms') return -1
+  if (b === 'parms') return 1
+  return a.localeCompare(b)
 }
 
 function buildStageGroups(rows: CompareRow[]): { flatRows: CompareRow[]; stages: StageGroup[] } {
@@ -148,24 +188,18 @@ function StageSection({
   )
 }
 
-export function GroupedDiffTable({ rows, importIds, idToLabel }: GroupedDiffTableProps) {
+export function GroupedDiffTable({ rows, importIds, idToLabel, wireGroupContext }: GroupedDiffTableProps) {
   const sections = useMemo<ParamGroupSection[]>(() => {
     const groupMap = new Map<string | null, CompareRow[]>()
     for (const row of rows) {
-      const pg = typeof row.param_group === 'string' ? row.param_group : null
-      const bucket = groupMap.get(pg) ?? []
+      const key = rowGroupKey(row)
+      const bucket = groupMap.get(key) ?? []
       bucket.push(row)
-      groupMap.set(pg, bucket)
+      groupMap.set(key, bucket)
     }
 
     return Array.from(groupMap.entries())
-      .sort(([a], [b]) => {
-        if (a === null) return 1   // null (other roles) last
-        if (b === null) return -1
-        if (a === 'parms') return -1
-        if (b === 'parms') return 1
-        return a.localeCompare(b)
-      })
+      .sort(([a], [b]) => sortGroupKeys(a, b))
       .map(([paramGroup, pgRows]) => {
         const { flatRows, stages } = buildStageGroups(pgRows)
         const diffCount =
@@ -201,7 +235,7 @@ export function GroupedDiffTable({ rows, importIds, idToLabel }: GroupedDiffTabl
           open={section.diffCount > 0}
         >
           <summary>
-            <span>{paramGroupLabel(section.paramGroup)}</span>
+            <span>{paramGroupLabel(section.paramGroup, wireGroupContext)}</span>
             <span className="grouped-count">{section.diffCount} diff</span>
           </summary>
           <div className="grouped-param-group-body">

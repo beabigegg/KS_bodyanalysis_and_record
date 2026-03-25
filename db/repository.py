@@ -14,6 +14,7 @@ from db.schema import (
     recipe_params,
     recipe_rpm_limits,
     recipe_rpm_reference,
+    recipe_wir_group_map,
 )
 
 
@@ -34,6 +35,7 @@ class RecipeRepository:
         bsg_rows: Sequence[Mapping[str, Any]],
         rpm_limits: Sequence[Mapping[str, Any]],
         rpm_reference: Sequence[Mapping[str, Any]],
+        wir_group_map: Sequence[Mapping[str, Any]] | None = None,
     ) -> int:
         with self.engine.begin() as conn:
             payload = dict(import_record)
@@ -87,6 +89,12 @@ class RecipeRepository:
                 conn.execute(
                     insert(recipe_rpm_reference),
                     [{**row, "recipe_import_id": recipe_import_id} for row in rpm_reference],
+                )
+
+            if wir_group_map:
+                conn.execute(
+                    insert(recipe_wir_group_map),
+                    [{**row, "recipe_import_id": recipe_import_id} for row in wir_group_map],
                 )
 
             return recipe_import_id
