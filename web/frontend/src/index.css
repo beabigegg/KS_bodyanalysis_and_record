@@ -298,6 +298,59 @@ tr.diff-row {
   font-size: 0.85rem;
 }
 
+.grouped-param-group {
+  border: 2px solid var(--accent, #3d8c6e);
+  border-radius: 12px;
+  background: var(--panel);
+}
+
+.grouped-param-group > summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 10px 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--accent, #3d8c6e);
+}
+
+.grouped-param-group > summary::-webkit-details-marker {
+  display: none;
+}
+
+.grouped-param-group-body {
+  padding: 0 10px 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.result-section {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.result-section > summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 10px 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.result-section > summary::-webkit-details-marker {
+  display: none;
+}
+
+.result-section-body {
+  padding: 0 14px 14px;
+}
+
 @media (max-width: 1080px) {
   .app-shell {
     grid-template-columns: 1fr;

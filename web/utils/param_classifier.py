@@ -5,30 +5,54 @@ import re
 
 class ParamClassifier:
     PP_PREFIX_MAP: dict[str, tuple[str, str | None]] = {
+        # Ball formation
         "EFO": ("ball_formation", "efo"),
         "FAB": ("ball_formation", "fab"),
         "SBD": ("ball_formation", "detection"),
         "LBD": ("ball_formation", "detection"),
+        "BUMP": ("ball_formation", "bump"),
+        # Bond1 — full names used in ConnX Elite PRM files
+        "BOND1": ("bond1", None),
+        "BOND1SEG": ("bond1", "seg_params"),
+        "BOND1WEDGESEG": ("bond1", "wedge"),
+        # Bond1 — legacy abbreviated names
         "B1": ("bond1", None),
         "BD1": ("bond1", None),
-        "EQU": ("_unmapped", "equalization"),
+        # Loop
+        "LOOP": ("loop", "profile"),
         "LK": ("loop", "profile"),
         "LP": ("loop", "profile"),
         "J": ("loop", "other"),
         "SPAN": ("loop", "shaping"),
+        "SPAN1": ("loop", "shaping"),
+        "SPAN2": ("loop", "shaping"),
+        "SPAN3": ("loop", "shaping"),
         "FLAT": ("loop", "shaping"),
+        "FOLD": ("loop", "shaping"),
+        "FOLD2": ("loop", "shaping"),
+        "SHAPE": ("loop", "shaping"),
         "BAL": ("loop", "balance"),
+        # Bond2 — full names
+        "BOND2": ("bond2", None),
+        "BOND2SEG": ("bond2", "seg_params"),
+        # Bond2 — legacy abbreviated names
         "B2": ("bond2", None),
         "BD2": ("bond2", None),
         "TAIL": ("bond2", "tail"),
+        "PULLOUT": ("bond2", "tail"),
         "SSB": ("bond2", "ssb"),
+        # Quick adjust
         "QS": ("quick_adjust", "stitch"),
         "QK": ("quick_adjust", "bond"),
         "QB": ("quick_adjust", "bond"),
+        # Quality
         "NSOP": ("quality", "nsop"),
         "NSOL": ("quality", "nsol"),
         "SHTL": ("quality", "shtl"),
         "BITS": ("quality", "general"),
+        # Misc
+        "EQU": ("_unmapped", "equalization"),
+        "GEN": ("_unmapped", "general"),
     }
 
     MAG_HANDLER_KEYWORD_MAP: dict[str, str] = {

@@ -3,14 +3,15 @@ import type { CompareRow } from '../types'
 type DiffTableProps = {
   rows: CompareRow[]
   importIds: number[]
+  idToLabel?: Record<string, string>
 }
 
-export function DiffTable({ rows, importIds }: DiffTableProps) {
+export function DiffTable({ rows, importIds, idToLabel }: DiffTableProps) {
   if (rows.length === 0) {
     return <p className="empty">No comparison rows.</p>
   }
 
-  const HIDDEN_KEYS = new Set(['values', 'is_diff', 'stage', 'category'])
+  const HIDDEN_KEYS = new Set(['values', 'is_diff', 'stage', 'category', 'param_group'])
   const metaKeys = Object.keys(rows[0]).filter((key) => !HIDDEN_KEYS.has(key))
 
   return (
@@ -22,7 +23,7 @@ export function DiffTable({ rows, importIds }: DiffTableProps) {
               <th key={key}>{key}</th>
             ))}
             {importIds.map((id) => (
-              <th key={id}>Import #{id}</th>
+              <th key={id}>{idToLabel?.[String(id)] ?? `Import #${id}`}</th>
             ))}
           </tr>
         </thead>

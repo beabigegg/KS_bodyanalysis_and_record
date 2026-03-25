@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { api, type ApiResponse } from '../lib/api'
 import type { ComparePayload, ImportRecord } from '../types'
 import { DiffTable } from '../components/DiffTable'
@@ -13,6 +13,17 @@ export function ComparePage() {
   const [fileType, setFileType] = useState('')
   const [showAll, setShowAll] = useState(false)
   const [result, setResult] = useState<ComparePayload | null>(null)
+
+  const filteredParams = useMemo(() => {
+    if (!result) return []
+    if (!fileType) return result.params
+    const lower = fileType.toLowerCase()
+    return result.params.filter(
+      (row) =>
+        String(row.file_type ?? '').toLowerCase().includes(lower) ||
+        String(row.param_name ?? '').toLowerCase().includes(lower),
+    )
+  }, [result, fileType])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -89,7 +100,7 @@ export function ComparePage() {
     try {
       const response = await api.post<ApiResponse<ComparePayload>>('/compare', {
         import_ids: selectedIds,
-        file_type: fileType || null,
+        file_type: null,
         show_all: showAll,
       })
       setResult(response.data.data)
@@ -132,7 +143,7 @@ export function ComparePage() {
             </option>
           ))}
         </select>
-        <input value={fileType} onChange={(e) => setFileType(e.target.value)} placeholder="file_type (optional)" />
+        <input value={fileType} onChange={(e) => setFileType(e.target.value)} placeholder="filter by file_type or param_name" />
         <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <input type="checkbox" checked={showAll} onChange={(e) => setShowAll(e.target.checked)} />
           Show all params
@@ -152,7 +163,9 @@ export function ComparePage() {
               <tr>
                 <th />
                 <th>Machine</th>
-                <th>Import ID</th>
+                <th>Product Type</th>
+                <th>BOP</th>
+                <th>Wafer PN</th>
                 <th>Recipe Time</th>
               </tr>
             </thead>
@@ -171,7 +184,9 @@ export function ComparePage() {
                     />
                   </td>
                   <td>{item.machine_id}</td>
-                  <td>{item.id}</td>
+                  <td>{item.product_type}</td>
+                  <td>{item.bop}</td>
+                  <td>{item.wafer_pn}</td>
                   <td className="mono">{item.recipe_datetime}</td>
                 </tr>
               ))}
@@ -182,20 +197,50 @@ export function ComparePage() {
 
       {error ? <p className="error-msg">{error}</p> : null}
 
-      {result ? (
-        <div className="panel">
-          <h3 style={{ marginTop: 0 }}>Parameter Diff</h3>
-          <GroupedDiffTable rows={result.params} importIds={selectedIds} />
-          <h3>APP Diff</h3>
-          <DiffTable rows={result.app_spec} importIds={selectedIds} />
-          <h3>BSG Diff</h3>
-          <DiffTable rows={result.bsg} importIds={selectedIds} />
-          <h3>RPM Limits Diff</h3>
-          <DiffTable rows={result.rpm_limits} importIds={selectedIds} />
-          <h3>RPM Reference Diff</h3>
-          <DiffTable rows={result.rpm_reference} importIds={selectedIds} />
-        </div>
-      ) : null}
+      {result ? (() => {
+        const idToLabel = Object.fromEntries(result.imports.map((imp) => [String(imp.id), imp.machine_id]))
+        const diffCount = (rows: { is_diff: boolean }[]) => rows.filter((r) => r.is_diff).length
+        const sections: Array<{ title: string; count: number; content: React.ReactNode }> = [
+          {
+            title: 'Parameter Diff',
+            count: diffCount(filteredParams),
+            content: <GroupedDiffTable rows={filteredParams} importIds={selectedIds} idToLabel={idToLabel} />,
+          },
+          {
+            title: 'APP Diff',
+            count: diffCount(result.app_spec),
+            content: <DiffTable rows={result.app_spec} importIds={selectedIds} idToLabel={idToLabel} />,
+          },
+          {
+            title: 'BSG Diff',
+            count: diffCount(result.bsg),
+            content: <DiffTable rows={result.bsg} importIds={selectedIds} idToLabel={idToLabel} />,
+          },
+          {
+            title: 'RPM Limits Diff',
+            count: diffCount(result.rpm_limits),
+            content: <DiffTable rows={result.rpm_limits} importIds={selectedIds} idToLabel={idToLabel} />,
+          },
+          {
+            title: 'RPM Reference Diff',
+            count: diffCount(result.rpm_reference),
+            content: <DiffTable rows={result.rpm_reference} importIds={selectedIds} idToLabel={idToLabel} />,
+          },
+        ]
+        return (
+          <div style={{ display: 'grid', gap: 10 }}>
+            {sections.map((section) => (
+              <details key={section.title} className="result-section" open={section.count > 0}>
+                <summary>
+                  <span>{section.title}</span>
+                  <span className="grouped-count">{section.count} diff</span>
+                </summary>
+                <div className="result-section-body">{section.content}</div>
+              </details>
+            ))}
+          </div>
+        )
+      })() : null}
     </section>
   )
 }

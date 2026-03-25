@@ -27,6 +27,7 @@ export type CompareRow = {
   is_diff: boolean
   stage: string | null
   category: string | null
+  param_group: string | null
   [key: string]: unknown
 }
 

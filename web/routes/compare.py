@@ -45,10 +45,22 @@ def _diff_rows(
 ) -> list[dict[str, Any]]:
     """Build pivoted diff rows from source_rows.
 
-    include_classification: when True, each row is enriched with ``stage`` and
-    ``category`` fields via ParamClassifier.  Only param rows need this; other
-    diff sections (app_spec, bsg, rpm_*) should leave this False.
+    include_classification: when True, each row is enriched with ``stage``,
+    ``category``, and ``param_group`` fields.  For parms_N groups, diff is
+    computed only across imports that actually have that group, so machines
+    without a particular group do not count as a value difference.
     """
+    # Pre-compute which parms groups each import owns (used for group-aware diff).
+    parms_groups_per_import: dict[int, set[str]] = {}
+    if include_classification:
+        parms_groups_per_import = {imp_id: set() for imp_id in import_ids}
+        for row in source_rows:
+            imp_id = int(row["recipe_import_id"])
+            pn = str(row.get("param_name") or "")
+            role = pn.split("/")[0] if "/" in pn else ""
+            if role.startswith("parms"):
+                parms_groups_per_import[imp_id].add(role)
+
     pivot: dict[tuple[Any, ...], dict[int, Any]] = defaultdict(dict)
     for row in source_rows:
         key = tuple(row.get(k) for k in keys)
@@ -56,14 +68,33 @@ def _diff_rows(
 
     output: list[dict[str, Any]] = []
     for key, val_map in pivot.items():
-        values = [val_map.get(import_id) for import_id in import_ids]
+        item = {k: key[idx] for idx, k in enumerate(keys)}
+
+        # Determine param_group early so diff can be group-scoped.
+        param_group: str | None = None
+        if include_classification:
+            pn = str(item.get("param_name") or "")
+            role = pn.split("/")[0] if "/" in pn else ""
+            param_group = role if role.startswith("parms") else None
+
+        # For parms_N groups: only compare imports that own this group.
+        if param_group is not None:
+            relevant_ids = [
+                imp_id for imp_id in import_ids
+                if param_group in parms_groups_per_import.get(imp_id, set())
+            ]
+        else:
+            relevant_ids = import_ids
+
+        values = [val_map.get(imp_id) for imp_id in relevant_ids]
         is_diff = _has_diff(values)
         if not show_all and not is_diff:
             continue
-        item = {k: key[idx] for idx, k in enumerate(keys)}
+
         item["values"] = {str(import_id): val_map.get(import_id) for import_id in import_ids}
         item["is_diff"] = is_diff
         if include_classification:
+            item["param_group"] = param_group
             stage, category = ParamClassifier.classify(
                 str(item.get("param_name") or ""),
                 str(item.get("file_type") or ""),
@@ -137,7 +168,7 @@ def compare_recipe_params(
         .where(recipe_params.c.file_type != "BSG")
     )
     if payload.file_type:
-        param_stmt = param_stmt.where(recipe_params.c.file_type == payload.file_type)
+        param_stmt = param_stmt.where(recipe_params.c.file_type.ilike(f"%{payload.file_type}%"))
     param_rows = [row_to_dict(row) for row in conn.execute(param_stmt).all()]
     param_diff = _diff_rows(
         ["file_type", "param_name"],
