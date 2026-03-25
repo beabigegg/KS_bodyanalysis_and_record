@@ -78,10 +78,11 @@ export type CompareRow = {
 
 export type ComparePayload = {
   imports: ImportRecord[]
-  params: CompareRow[]
-  app_spec: CompareRow[]
-  bsg: CompareRow[]
-  rpm_limits: CompareRow[]
-  rpm_reference: CompareRow[]
+  section: 'params' | 'app_spec' | 'bsg' | 'rpm_limits' | 'rpm_reference'
+  rows: CompareRow[]
+  page: number
+  page_size: number
+  total_pages: number
+  total_rows: number
   wire_group_context: Record<string, WirGroupEntry[]>
 }

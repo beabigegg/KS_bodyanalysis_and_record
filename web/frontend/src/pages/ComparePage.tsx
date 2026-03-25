@@ -1,8 +1,18 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { api, type ApiResponse } from '../lib/api'
 import type { ComparePayload, ImportRecord } from '../types'
 import { DiffTable } from '../components/DiffTable'
 import { GroupedDiffTable } from '../components/GroupedDiffTable'
+
+const compareSections = [
+  { key: 'params', label: 'Parameter Diff' },
+  { key: 'app_spec', label: 'APP Diff' },
+  { key: 'bsg', label: 'BSG Diff' },
+  { key: 'rpm_limits', label: 'RPM Limits Diff' },
+  { key: 'rpm_reference', label: 'RPM Reference Diff' },
+] as const
+
+type CompareSection = (typeof compareSections)[number]['key']
 
 export function ComparePage() {
   const [imports, setImports] = useState<ImportRecord[]>([])
@@ -12,36 +22,27 @@ export function ComparePage() {
   const [selectedIds, setSelectedIds] = useState<number[]>([])
   const [fileType, setFileType] = useState('')
   const [showAll, setShowAll] = useState(false)
+  const [activeSection, setActiveSection] = useState<CompareSection>('params')
+  const [page, setPage] = useState(1)
   const [result, setResult] = useState<ComparePayload | null>(null)
-
-  const filteredParams = useMemo(() => {
-    if (!result) return []
-    if (!fileType) return result.params
-    const lower = fileType.toLowerCase()
-    return result.params.filter(
-      (row) =>
-        String(row.file_type ?? '').toLowerCase().includes(lower) ||
-        String(row.param_name ?? '').toLowerCase().includes(lower),
-    )
-  }, [result, fileType])
+  const [submittedIds, setSubmittedIds] = useState<number[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     void (async () => {
       try {
-        // Load enough records to cover all machines; paginate if needed
         let allImports: ImportRecord[] = []
-        let page = 1
+        let nextPage = 1
         const pageSize = 200
         let hasMore = true
         while (hasMore) {
           const response = await api.get<ApiResponse<ImportRecord[]>>('/imports', {
-            params: { page, page_size: pageSize },
+            params: { page: nextPage, page_size: pageSize },
           })
           allImports = allImports.concat(response.data.data)
           hasMore = allImports.length < response.data.total
-          page++
+          nextPage += 1
         }
         setImports(allImports)
       } catch (err) {
@@ -91,17 +92,20 @@ export function ComparePage() {
     setSelectedIds(latestByMachine.map((x) => x.id))
   }
 
-  const submitCompare = async () => {
-    if (selectedIds.length < 2) {
+  const fetchCompareSection = async (importIds: number[], section: CompareSection, nextPage: number) => {
+    if (importIds.length < 2) {
       return
     }
     setLoading(true)
     setError(null)
     try {
       const response = await api.post<ApiResponse<ComparePayload>>('/compare', {
-        import_ids: selectedIds,
-        file_type: null,
+        import_ids: importIds,
+        section,
+        file_type: section === 'params' && fileType ? fileType : null,
         show_all: showAll,
+        page: nextPage,
+        page_size: section === 'params' ? 200 : 100,
       })
       setResult(response.data.data)
     } catch (err) {
@@ -111,11 +115,36 @@ export function ComparePage() {
     }
   }
 
+  const submitCompare = async () => {
+    if (selectedIds.length < 2) {
+      return
+    }
+    setSubmittedIds(selectedIds)
+    setPage(1)
+    await fetchCompareSection(selectedIds, activeSection, 1)
+  }
+
+  useEffect(() => {
+    if (submittedIds.length < 2) {
+      return
+    }
+    void fetchCompareSection(submittedIds, activeSection, page)
+  }, [activeSection, page])
+
+  const currentImportIds = submittedIds.length >= 2 ? submittedIds : selectedIds
+  const idToLabel = useMemo(
+    () => Object.fromEntries((result?.imports ?? []).map((imp) => [String(imp.id), imp.machine_id])),
+    [result],
+  )
+
+  const currentSectionLabel =
+    compareSections.find((section) => section.key === activeSection)?.label ?? 'Compare Result'
+
   return (
     <section className="page">
       <header className="page-header">
         <h2>Cross-Machine Compare</h2>
-        <p>Select product context, pick machines, and inspect parameter diffs.</p>
+        <p>Browse one diff section at a time so large compares stay responsive.</p>
       </header>
 
       <div className="panel controls">
@@ -143,7 +172,12 @@ export function ComparePage() {
             </option>
           ))}
         </select>
-        <input value={fileType} onChange={(e) => setFileType(e.target.value)} placeholder="filter by file_type or param_name" />
+        <input
+          value={fileType}
+          onChange={(e) => setFileType(e.target.value)}
+          placeholder="filter by file_type"
+          disabled={activeSection !== 'params'}
+        />
         <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <input type="checkbox" checked={showAll} onChange={(e) => setShowAll(e.target.checked)} />
           Show all params
@@ -151,9 +185,9 @@ export function ComparePage() {
       </div>
 
       <div className="panel">
-        <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
           <button onClick={compareAllMachines}>Compare all machines</button>
-          <button className="primary" disabled={selectedIds.length < 2 || loading} onClick={submitCompare}>
+          <button className="primary" disabled={selectedIds.length < 2 || loading} onClick={() => void submitCompare()}>
             {loading ? 'Comparing...' : 'Compare selected'}
           </button>
         </div>
@@ -195,52 +229,68 @@ export function ComparePage() {
         </div>
       </div>
 
+      {submittedIds.length >= 2 ? (
+        <div className="panel tabs">
+          {compareSections.map((section) => (
+            <button
+              key={section.key}
+              className={activeSection === section.key ? 'active' : ''}
+              onClick={() => {
+                setActiveSection(section.key)
+                setPage(1)
+              }}
+            >
+              {section.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
+
       {error ? <p className="error-msg">{error}</p> : null}
 
-      {result ? (() => {
-        const idToLabel = Object.fromEntries(result.imports.map((imp) => [String(imp.id), imp.machine_id]))
-        const diffCount = (rows: { is_diff: boolean }[]) => rows.filter((r) => r.is_diff).length
-        const sections: Array<{ title: string; count: number; content: React.ReactNode }> = [
-          {
-            title: 'Parameter Diff',
-            count: diffCount(filteredParams),
-            content: <GroupedDiffTable rows={filteredParams} importIds={selectedIds} idToLabel={idToLabel} wireGroupContext={result.wire_group_context} />,
-          },
-          {
-            title: 'APP Diff',
-            count: diffCount(result.app_spec),
-            content: <DiffTable rows={result.app_spec} importIds={selectedIds} idToLabel={idToLabel} />,
-          },
-          {
-            title: 'BSG Diff',
-            count: diffCount(result.bsg),
-            content: <DiffTable rows={result.bsg} importIds={selectedIds} idToLabel={idToLabel} />,
-          },
-          {
-            title: 'RPM Limits Diff',
-            count: diffCount(result.rpm_limits),
-            content: <DiffTable rows={result.rpm_limits} importIds={selectedIds} idToLabel={idToLabel} />,
-          },
-          {
-            title: 'RPM Reference Diff',
-            count: diffCount(result.rpm_reference),
-            content: <DiffTable rows={result.rpm_reference} importIds={selectedIds} idToLabel={idToLabel} />,
-          },
-        ]
-        return (
-          <div style={{ display: 'grid', gap: 10 }}>
-            {sections.map((section) => (
-              <details key={section.title} className="result-section" open={section.count > 0}>
-                <summary>
-                  <span>{section.title}</span>
-                  <span className="grouped-count">{section.count} diff</span>
-                </summary>
-                <div className="result-section-body">{section.content}</div>
-              </details>
-            ))}
+      {result ? (
+        <>
+          <div className="panel">
+            <div className="section-heading">
+              <div>
+                <h3>{currentSectionLabel}</h3>
+                <p>
+                  Showing page {result.page} / {result.total_pages} for {result.total_rows} rows.
+                </p>
+              </div>
+              <span className="summary-inline">
+                Compared machines: {currentImportIds.length}
+              </span>
+            </div>
+            {activeSection === 'params' ? (
+              <GroupedDiffTable
+                rows={result.rows}
+                importIds={currentImportIds}
+                idToLabel={idToLabel}
+                wireGroupContext={result.wire_group_context}
+              />
+            ) : (
+              <DiffTable rows={result.rows} importIds={currentImportIds} idToLabel={idToLabel} />
+            )}
           </div>
-        )
-      })() : null}
+
+          <div className="panel pagination-row">
+            <button disabled={page <= 1 || loading} onClick={() => setPage((prev) => Math.max(1, prev - 1))}>
+              Prev
+            </button>
+            <span>
+              Page {result.page} / {result.total_pages}
+            </span>
+            <button
+              disabled={page >= result.total_pages || loading}
+              onClick={() => setPage((prev) => Math.min(result.total_pages, prev + 1))}
+            >
+              Next
+            </button>
+            <span style={{ marginLeft: 'auto' }}>Rows: {result.total_rows}</span>
+          </div>
+        </>
+      ) : null}
     </section>
   )
 }

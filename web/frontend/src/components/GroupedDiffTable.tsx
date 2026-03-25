@@ -29,7 +29,12 @@ type ParamGroupSection = {
 }
 
 function stageLabel(stage: string): string {
-  if (stage === '_unmapped') return '未分類'
+  if (stage === '_unmapped') return 'Unmapped'
+  if (stage === 'bond1') return 'Bond1'
+  if (stage === 'bond2') return 'Bond2'
+  if (stage === 'bump') return 'Bump'
+  if (stage === 'bits_other') return 'BITS / Other'
+  if (stage === 'quick_adjust') return 'Quick Adjust'
   return stage
 }
 

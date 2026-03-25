@@ -3,17 +3,13 @@
 ### Requirement: Classify param_name into stage and category
 The system SHALL classify PRM parameters using K&S reference-aligned parameter classes and subgroup categories, while continuing to classify non-PRM roles with their existing keyword logic.
 
-#### Scenario: Bond1 force parameter maps to bond1 force
+#### Scenario: Bond1 force parameter maps to bond1_ball force
 - **WHEN** `param_name = "parms/B1_Force_Seg_01"`
-- **THEN** the classifier SHALL return `stage = "bond1"` and `category = "force"`
+- **THEN** the classifier SHALL return `stage = "bond1_ball"` and `category = "force"`
 
-#### Scenario: Ball formation parameter maps to bond1 ball_efo
+#### Scenario: Ball formation parameter maps to bond1_ball ball_efo
 - **WHEN** `param_name = "parms/EFO_Power"`
-- **THEN** the classifier SHALL return `stage = "bond1"` and `category = "ball_efo"`
-
-#### Scenario: Bump parameter maps to bump force
-- **WHEN** `param_name = "parms/Bump_Force_Seg_01"`
-- **THEN** the classifier SHALL return `stage = "bump"` and `category = "force"`
+- **THEN** the classifier SHALL return `stage = "bond1_ball"` and `category = "ball_efo"`
 
 #### Scenario: Loop balance parameter maps to loop balance
 - **WHEN** `param_name = "parms/Bal_Loop_Percent"`

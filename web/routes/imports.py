@@ -17,6 +17,7 @@ from db.schema import (  # type: ignore[import-not-found]
     recipe_params,
     recipe_rpm_limits,
     recipe_rpm_reference,
+    recipe_wir_group_map,
 )
 
 router = APIRouter(prefix="/api/imports", tags=["imports"])
@@ -28,19 +29,34 @@ def _ensure_import_exists(conn: Connection, import_id: int) -> None:
         raise HTTPException(status_code=404, detail="Import record not found")
 
 
-def _param_group(param_name: str) -> str | None:
+def _fetch_wir_group_map(conn: Connection, import_id: int) -> dict[str, int]:
+    stmt = select(recipe_wir_group_map).where(recipe_wir_group_map.c.recipe_import_id == import_id)
+    result: dict[str, int] = {}
+    for row in conn.execute(stmt).all():
+        data = row_to_dict(row)
+        result[str(data["parms_role"])] = int(data["wir_group_no"])
+    return result
+
+
+def _param_group(param_name: str, wire_group_map: dict[str, int]) -> str | None:
     if "/" not in param_name:
         return None
     group = param_name.split("/", 1)[0].strip()
-    return group or None
+    if not group:
+        return None
+    if group.startswith("parms"):
+        wire_group_no = wire_group_map.get(group)
+        if wire_group_no is not None:
+            return f"wire_{wire_group_no}"
+    return group
 
 
-def _semantic_param_row(row: Any) -> dict[str, Any]:
+def _semantic_param_row(row: Any, wire_group_map: dict[str, int]) -> dict[str, Any]:
     item = row_to_dict(row)
     param_name = str(item.get("param_name") or "")
     file_type = str(item.get("file_type") or "")
     stage, category = ParamClassifier.classify(param_name, file_type)
-    item["param_group"] = _param_group(param_name)
+    item["param_group"] = _param_group(param_name, wire_group_map)
     item["stage"] = stage
     item["category"] = category
     return item
@@ -53,6 +69,7 @@ def _load_semantic_params(
     search: str | None = None,
     file_type: str | None = None,
 ) -> list[dict[str, Any]]:
+    wire_group_map = _fetch_wir_group_map(conn, import_id)
     filters = [recipe_params.c.recipe_import_id == import_id]
     if file_type:
         filters.append(recipe_params.c.file_type == file_type)
@@ -70,7 +87,7 @@ def _load_semantic_params(
             recipe_params.c.id.asc(),
         )
     )
-    return [_semantic_param_row(row) for row in conn.execute(stmt).all()]
+    return [_semantic_param_row(row, wire_group_map) for row in conn.execute(stmt).all()]
 
 
 def _facet_items(counter: dict[str, int], *, sort_alpha: bool = True) -> list[dict[str, Any]]:

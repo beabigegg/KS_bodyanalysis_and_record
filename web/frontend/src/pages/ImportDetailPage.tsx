@@ -2,29 +2,134 @@ import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { api, type ApiResponse } from '../lib/api'
 import { downloadCsv } from '../lib/csv'
+import { displayParamName, prmSegmentGroup } from '../lib/paramName'
 import { ObjectTable } from '../components/ObjectTable'
-import type { ImportDetailSummary, ParamFacets, ParamPage, ParamRow } from '../types'
+import type { CountOption, ImportDetailSummary, ParamFacets, ParamRow } from '../types'
 
 type RpmData = {
   limits: Array<Record<string, unknown>>
   reference: Array<Record<string, unknown>>
 }
 
+type SegmentSection = {
+  label: string
+  count: number
+  rows: Array<Record<string, string | number>>
+}
+
+type SegmentPage = {
+  sections: SegmentSection[]
+  rowCount: number
+}
+
+type ParamFilterState = {
+  paramGroup: string
+  stage: string
+  category: string
+  search: string
+}
+
 const detailTabs = ['PARAMS', 'APP', 'BSG', 'RPM'] as const
+const PARAM_PAGE_SIZE = 100
+const PRM_SEGMENT_PAGE_SIZE = 96
+
+function formatParamGroupLabel(value: string) {
+  const wireMatch = /^wire_(\d+)$/.exec(value)
+  if (wireMatch) {
+    return `Bond Group ${wireMatch[1]}`
+  }
+  if (value === 'parms') {
+    return 'Param Group 1'
+  }
+  const parmsMatch = /^parms_(\d+)$/.exec(value)
+  if (parmsMatch) {
+    return `Param Group ${parmsMatch[1]}`
+  }
+  return value
+}
+
+function formatStageLabel(value: string) {
+  if (value === 'bond1') return 'Bond1'
+  if (value === 'bond2') return 'Bond2'
+  if (value === 'bump') return 'Bump'
+  if (value === 'bits_other') return 'BITS / Other'
+  if (value === 'quick_adjust') return 'Quick Adjust'
+  return value
+}
 
 function toParamTableRows(rows: ParamRow[]) {
   return rows.map((row) => ({
     file_type: row.file_type,
-    param_group: row.param_group ?? '',
-    stage: row.stage ?? '',
+    param_group: row.param_group ? formatParamGroupLabel(row.param_group) : '',
+    stage: row.stage ? formatStageLabel(row.stage) : '',
     category: row.category ?? '',
-    param_name: row.param_name,
+    param_name: displayParamName(row.param_name, row.file_type),
     param_value: row.param_value ?? '',
     unit: row.unit ?? '',
     min_value: row.min_value ?? '',
     max_value: row.max_value ?? '',
     default_value: row.default_value ?? '',
   }))
+}
+
+function compareSegmentLabel(left: string, right: string) {
+  if (left === right) {
+    return 0
+  }
+  if (left === 'General') {
+    return 1
+  }
+  if (right === 'General') {
+    return -1
+  }
+  const leftMatch = /^Seg (\d+)$/i.exec(left)
+  const rightMatch = /^Seg (\d+)$/i.exec(right)
+  if (leftMatch && rightMatch) {
+    return Number(leftMatch[1]) - Number(rightMatch[1])
+  }
+  return left.localeCompare(right)
+}
+
+function matchesSearch(row: ParamRow, search: string) {
+  if (!search.trim()) {
+    return true
+  }
+  const term = search.trim().toLowerCase()
+  return displayParamName(row.param_name, row.file_type).toLowerCase().includes(term)
+}
+
+function matchesFilters(row: ParamRow, filters: ParamFilterState, skip?: keyof ParamFilterState) {
+  if (skip !== 'paramGroup' && filters.paramGroup && row.param_group !== filters.paramGroup) {
+    return false
+  }
+  if (skip !== 'stage' && filters.stage && row.stage !== filters.stage) {
+    return false
+  }
+  if (skip !== 'category' && filters.category && row.category !== filters.category) {
+    return false
+  }
+  if (skip !== 'search' && !matchesSearch(row, filters.search)) {
+    return false
+  }
+  return true
+}
+
+function buildFacetOptions(rows: ParamRow[], key: 'param_group' | 'stage' | 'category'): CountOption[] {
+  const counts = new Map<string, number>()
+  for (const row of rows) {
+    const value = row[key]
+    if (!value) {
+      continue
+    }
+    counts.set(value, (counts.get(value) ?? 0) + 1)
+  }
+  return Array.from(counts.entries())
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([value, count]) => ({ value, count }))
+}
+
+function clampPage(page: number, totalPages: number) {
+  return Math.min(Math.max(1, page), Math.max(1, totalPages))
 }
 
 export function ImportDetailPage() {
@@ -37,8 +142,7 @@ export function ImportDetailPage() {
   const [selectedStage, setSelectedStage] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('')
   const [paramSearch, setParamSearch] = useState('')
-  const [paramsPage, setParamsPage] = useState<ParamPage | null>(null)
-  const [paramsTotal, setParamsTotal] = useState(0)
+  const [sourceRows, setSourceRows] = useState<ParamRow[]>([])
   const [page, setPage] = useState(1)
   const [appSpec, setAppSpec] = useState<Record<string, unknown> | null | undefined>(undefined)
   const [bsg, setBsg] = useState<Record<string, Array<Record<string, unknown>>> | undefined>(undefined)
@@ -47,6 +151,16 @@ export function ImportDetailPage() {
   const [paramsLoading, setParamsLoading] = useState(false)
   const [sectionLoading, setSectionLoading] = useState(false)
   const [error, setError] = useState('')
+  const supportsProcessFilters = selectedFileType === 'PRM'
+  const filters = useMemo<ParamFilterState>(
+    () => ({
+      paramGroup: selectedParamGroup,
+      stage: selectedStage,
+      category: selectedCategory,
+      search: paramSearch,
+    }),
+    [paramSearch, selectedCategory, selectedParamGroup, selectedStage],
+  )
 
   useEffect(() => {
     if (!importId) {
@@ -57,8 +171,7 @@ export function ImportDetailPage() {
     setError('')
     setSummary(null)
     setFacets(null)
-    setParamsPage(null)
-    setParamsTotal(0)
+    setSourceRows([])
     setSelectedFileType('')
     setSelectedParamGroup('')
     setSelectedStage('')
@@ -87,44 +200,41 @@ export function ImportDetailPage() {
   }, [importId])
 
   useEffect(() => {
-    if (!importId || activeTab !== 'PARAMS' || !facets) {
+    if (!importId || activeTab !== 'PARAMS' || !selectedFileType) {
       return
     }
 
     setParamsLoading(true)
     setError('')
+    setSourceRows([])
     void (async () => {
       try {
-        const response = await api.get<ApiResponse<ParamPage>>(`/imports/${importId}/params`, {
-          params: {
-            file_type: selectedFileType || undefined,
-            param_group: selectedParamGroup || undefined,
-            stage: selectedStage || undefined,
-            category: selectedCategory || undefined,
-            search: paramSearch || undefined,
-            page,
-            page_size: 100,
-          },
-        })
-        setParamsPage(response.data.data)
-        setParamsTotal(response.data.total)
+        const rows: ParamRow[] = []
+        let fetchPage = 1
+        let totalPages = 1
+        do {
+          const response = await api.get<ApiResponse<{ rows: ParamRow[]; total_pages: number }>>(
+            `/imports/${importId}/params`,
+            {
+              params: {
+                file_type: selectedFileType,
+                page: fetchPage,
+                page_size: 500,
+              },
+            },
+          )
+          rows.push(...response.data.data.rows)
+          totalPages = response.data.data.total_pages
+          fetchPage += 1
+        } while (fetchPage <= totalPages)
+        setSourceRows(rows)
       } catch (err: unknown) {
         setError(err instanceof Error ? err.message : 'Failed to load parameter rows')
       } finally {
         setParamsLoading(false)
       }
     })()
-  }, [
-    activeTab,
-    facets,
-    importId,
-    page,
-    paramSearch,
-    selectedCategory,
-    selectedFileType,
-    selectedParamGroup,
-    selectedStage,
-  ])
+  }, [activeTab, importId, selectedFileType])
 
   useEffect(() => {
     if (!importId || activeTab === 'PARAMS') {
@@ -151,9 +261,9 @@ export function ImportDetailPage() {
           )
           setAppSpec(response.data.data)
         } else if (activeTab === 'BSG') {
-          const response = await api.get<ApiResponse<Record<string, Array<Record<string, unknown>>>>>(
-            `/imports/${importId}/bsg`,
-          )
+          const response = await api.get<ApiResponse<Record<string, Array<Record<string, unknown>>>>>((
+            `/imports/${importId}/bsg`
+          ))
           setBsg(response.data.data)
         } else if (activeTab === 'RPM') {
           const response = await api.get<ApiResponse<RpmData>>(`/imports/${importId}/rpm`)
@@ -168,10 +278,118 @@ export function ImportDetailPage() {
   }, [activeTab, appSpec, bsg, importId, rpm])
 
   const fileTypes = facets?.file_types ?? []
-  const fileTypeGroups = facets?.param_groups_by_file_type[selectedFileType] ?? []
-  const fileTypeStages = facets?.stages_by_file_type[selectedFileType] ?? []
-  const fileTypeCategories = facets?.categories_by_file_type[selectedFileType] ?? []
-  const paramRows = useMemo(() => toParamTableRows(paramsPage?.rows ?? []), [paramsPage])
+  const filteredRows = useMemo(
+    () => sourceRows.filter((row) => matchesFilters(row, filters)),
+    [filters, sourceRows],
+  )
+  const groupOptions = useMemo(
+    () => buildFacetOptions(sourceRows.filter((row) => matchesFilters(row, filters, 'paramGroup')), 'param_group'),
+    [filters, sourceRows],
+  )
+  const stageOptions = useMemo(
+    () =>
+      supportsProcessFilters
+        ? buildFacetOptions(sourceRows.filter((row) => matchesFilters(row, filters, 'stage')), 'stage')
+        : [],
+    [filters, sourceRows, supportsProcessFilters],
+  )
+  const categoryOptions = useMemo(
+    () =>
+      supportsProcessFilters
+        ? buildFacetOptions(sourceRows.filter((row) => matchesFilters(row, filters, 'category')), 'category')
+        : [],
+    [filters, sourceRows, supportsProcessFilters],
+  )
+
+  useEffect(() => {
+    if (selectedParamGroup && !groupOptions.some((option) => option.value === selectedParamGroup)) {
+      setSelectedParamGroup('')
+      setPage(1)
+    }
+  }, [groupOptions, selectedParamGroup])
+
+  useEffect(() => {
+    if (selectedStage && !stageOptions.some((option) => option.value === selectedStage)) {
+      setSelectedStage('')
+      setPage(1)
+    }
+  }, [selectedStage, stageOptions])
+
+  useEffect(() => {
+    if (selectedCategory && !categoryOptions.some((option) => option.value === selectedCategory)) {
+      setSelectedCategory('')
+      setPage(1)
+    }
+  }, [categoryOptions, selectedCategory])
+
+  const isPrmSegmentedView = selectedFileType === 'PRM'
+  const prmSegmentSections = useMemo(() => {
+    if (!isPrmSegmentedView) {
+      return []
+    }
+    const groups = new Map<string, ParamRow[]>()
+    for (const row of filteredRows) {
+      const label = prmSegmentGroup(row.param_name, row.file_type) ?? 'General'
+      const bucket = groups.get(label)
+      if (bucket) {
+        bucket.push(row)
+      } else {
+        groups.set(label, [row])
+      }
+    }
+    return Array.from(groups.entries())
+      .sort(([left], [right]) => compareSegmentLabel(left, right))
+      .map(([label, rows]) => ({
+        label,
+        count: rows.length,
+        rows: toParamTableRows(rows),
+      }))
+  }, [filteredRows, isPrmSegmentedView])
+  const prmSegmentPages = useMemo(() => {
+    if (!isPrmSegmentedView) {
+      return []
+    }
+    const pages: SegmentPage[] = []
+    let currentSections: SegmentSection[] = []
+    let currentRowCount = 0
+    for (const section of prmSegmentSections) {
+      if (currentSections.length > 0 && currentRowCount + section.count > PRM_SEGMENT_PAGE_SIZE) {
+        pages.push({ sections: currentSections, rowCount: currentRowCount })
+        currentSections = []
+        currentRowCount = 0
+      }
+      currentSections.push(section)
+      currentRowCount += section.count
+    }
+    if (currentSections.length > 0) {
+      pages.push({ sections: currentSections, rowCount: currentRowCount })
+    }
+    if (pages.length === 0) {
+      pages.push({ sections: [], rowCount: 0 })
+    }
+    return pages
+  }, [isPrmSegmentedView, prmSegmentSections])
+  const nonPrmTotalPages = Math.max(1, Math.ceil(filteredRows.length / PARAM_PAGE_SIZE))
+  const normalizedPage = clampPage(page, isPrmSegmentedView ? prmSegmentPages.length : nonPrmTotalPages)
+  const pagedRows = useMemo(() => {
+    if (isPrmSegmentedView) {
+      return []
+    }
+    const start = (normalizedPage - 1) * PARAM_PAGE_SIZE
+    return filteredRows.slice(start, start + PARAM_PAGE_SIZE)
+  }, [filteredRows, isPrmSegmentedView, normalizedPage])
+  const paramRows = useMemo(() => toParamTableRows(pagedRows), [pagedRows])
+  const activePrmSegmentPage = isPrmSegmentedView
+    ? prmSegmentPages[normalizedPage - 1] ?? { sections: [], rowCount: 0 }
+    : null
+  const currentTotalPages = isPrmSegmentedView ? Math.max(1, prmSegmentPages.length) : nonPrmTotalPages
+  const currentShownCount = isPrmSegmentedView ? activePrmSegmentPage?.rowCount ?? 0 : pagedRows.length
+
+  useEffect(() => {
+    if (page !== normalizedPage) {
+      setPage(normalizedPage)
+    }
+  }, [normalizedPage, page])
 
   const resetParamFilters = () => {
     setSelectedParamGroup('')
@@ -181,34 +399,13 @@ export function ImportDetailPage() {
     setPage(1)
   }
 
-  const exportParamsCsv = async () => {
+  const exportParamsCsv = () => {
     if (!importId) {
       return
     }
-
-    const rows: ParamRow[] = []
-    let exportPage = 1
-    let totalPages = 1
-    do {
-      const response = await api.get<ApiResponse<ParamPage>>(`/imports/${importId}/params`, {
-        params: {
-          file_type: selectedFileType || undefined,
-          param_group: selectedParamGroup || undefined,
-          stage: selectedStage || undefined,
-          category: selectedCategory || undefined,
-          search: paramSearch || undefined,
-          page: exportPage,
-          page_size: 500,
-        },
-      })
-      rows.push(...response.data.data.rows)
-      totalPages = response.data.data.total_pages
-      exportPage += 1
-    } while (exportPage <= totalPages)
-
     downloadCsv(
       `import_${importId}_${selectedFileType || 'params'}.csv`,
-      toParamTableRows(rows),
+      toParamTableRows(filteredRows),
     )
   }
 
@@ -269,7 +466,7 @@ export function ImportDetailPage() {
                 <h3>File Type Overview</h3>
                 <p>Start from a file type, then narrow by semantic group instead of scanning the full recipe.</p>
               </div>
-              <span className="summary-inline">Filtered rows: {paramsTotal}</span>
+              <span className="summary-inline">Filtered rows: {filteredRows.length}</span>
             </div>
             <div className="chip-grid">
               {fileTypes.map((option) => (
@@ -281,6 +478,7 @@ export function ImportDetailPage() {
                     setSelectedParamGroup('')
                     setSelectedStage('')
                     setSelectedCategory('')
+                    setParamSearch('')
                     setPage(1)
                   }}
                 >
@@ -294,22 +492,6 @@ export function ImportDetailPage() {
           <div className="panel">
             <div className="controls" style={{ marginBottom: 10 }}>
               <select
-                value={selectedFileType}
-                onChange={(e) => {
-                  setSelectedFileType(e.target.value)
-                  setSelectedParamGroup('')
-                  setSelectedStage('')
-                  setSelectedCategory('')
-                  setPage(1)
-                }}
-              >
-                {fileTypes.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.value} ({option.count})
-                  </option>
-                ))}
-              </select>
-              <select
                 value={selectedParamGroup}
                 onChange={(e) => {
                   setSelectedParamGroup(e.target.value)
@@ -317,40 +499,44 @@ export function ImportDetailPage() {
                 }}
               >
                 <option value="">All groups</option>
-                {fileTypeGroups.map((option) => (
+                {groupOptions.map((option) => (
                   <option key={option.value} value={option.value}>
-                    {option.value} ({option.count})
+                    {formatParamGroupLabel(option.value)} ({option.count})
                   </option>
                 ))}
               </select>
-              <select
-                value={selectedStage}
-                onChange={(e) => {
-                  setSelectedStage(e.target.value)
-                  setPage(1)
-                }}
-              >
-                <option value="">All stages</option>
-                {fileTypeStages.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.value} ({option.count})
-                  </option>
-                ))}
-              </select>
-              <select
-                value={selectedCategory}
-                onChange={(e) => {
-                  setSelectedCategory(e.target.value)
-                  setPage(1)
-                }}
-              >
-                <option value="">All categories</option>
-                {fileTypeCategories.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.value} ({option.count})
-                  </option>
-                ))}
-              </select>
+              {supportsProcessFilters ? (
+                <select
+                  value={selectedStage}
+                  onChange={(e) => {
+                    setSelectedStage(e.target.value)
+                    setPage(1)
+                  }}
+                >
+                  <option value="">All process stages</option>
+                  {stageOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {formatStageLabel(option.value)} ({option.count})
+                    </option>
+                  ))}
+                </select>
+              ) : null}
+              {supportsProcessFilters ? (
+                <select
+                  value={selectedCategory}
+                  onChange={(e) => {
+                    setSelectedCategory(e.target.value)
+                    setPage(1)
+                  }}
+                >
+                  <option value="">All parameter classes</option>
+                  {categoryOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.value} ({option.count})
+                    </option>
+                  ))}
+                </select>
+              ) : null}
               <input
                 value={paramSearch}
                 onChange={(e) => {
@@ -360,29 +546,44 @@ export function ImportDetailPage() {
                 placeholder="Search parameter name"
               />
               <button onClick={resetParamFilters}>Reset filters</button>
-              <button className="primary" onClick={() => void exportParamsCsv()}>
+              <button className="primary" onClick={exportParamsCsv}>
                 Export filtered CSV
               </button>
             </div>
             {paramsLoading ? <p className="empty">Loading parameter rows...</p> : null}
-            <ObjectTable rows={paramRows} />
+            {isPrmSegmentedView ? (
+              <div className="segment-groups">
+                {activePrmSegmentPage?.sections.length === 0 ? <ObjectTable rows={[]} /> : null}
+                {activePrmSegmentPage?.sections.map((section) => (
+                  <section key={section.label} className="segment-group">
+                    <div className="segment-group-header">
+                      <h3>{section.label}</h3>
+                      <span>{section.count} rows</span>
+                    </div>
+                    <ObjectTable rows={section.rows} />
+                  </section>
+                ))}
+              </div>
+            ) : (
+              <ObjectTable rows={paramRows} />
+            )}
           </div>
 
           <div className="panel pagination-row">
-            <button disabled={page <= 1} onClick={() => setPage((prev) => Math.max(1, prev - 1))}>
+            <button disabled={normalizedPage <= 1} onClick={() => setPage((prev) => Math.max(1, prev - 1))}>
               Prev
             </button>
             <span>
-              Page {paramsPage?.page ?? page} / {paramsPage?.total_pages ?? 1}
+              Page {normalizedPage} / {currentTotalPages}
             </span>
             <button
-              disabled={page >= (paramsPage?.total_pages ?? 1)}
-              onClick={() => setPage((prev) => Math.min(paramsPage?.total_pages ?? 1, prev + 1))}
+              disabled={normalizedPage >= currentTotalPages}
+              onClick={() => setPage((prev) => Math.min(currentTotalPages, prev + 1))}
             >
               Next
             </button>
             <span style={{ marginLeft: 'auto' }}>
-              Showing {paramsPage?.rows.length ?? 0} of {paramsTotal}
+              Showing {currentShownCount} of {filteredRows.length}
             </span>
           </div>
         </>

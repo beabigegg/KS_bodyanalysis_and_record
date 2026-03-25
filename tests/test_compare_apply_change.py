@@ -235,18 +235,93 @@ class CompareApplyChangeTests(unittest.TestCase):
                 ],
             )
 
-        payload = CompareRequest(import_ids=[1, 2], show_all=True)
+        payload = CompareRequest(import_ids=[1, 2], section="params", show_all=True, page=1, page_size=10)
         with self.engine.connect() as conn:
             result = compare_recipe_params(payload, conn)
 
         data = result["data"]
-        self.assertTrue(all(row["file_type"] != "BSG" for row in data["params"]))
-        self.assertEqual(data["params"][0]["stage"], "bond1")
-        self.assertEqual(data["params"][0]["category"], "seg_01")
-        self.assertTrue(all("stage" not in row and "category" not in row for row in data["bsg"]))
-        self.assertGreater(len(data["bsg"]), 0)
-        self.assertGreater(len(data["rpm_limits"]), 0)
-        self.assertGreater(len(data["rpm_reference"]), 0)
+        self.assertEqual(data["section"], "params")
+        self.assertTrue(all(row["file_type"] != "BSG" for row in data["rows"]))
+        self.assertEqual(data["rows"][0]["stage"], "bond1")
+        self.assertEqual(data["rows"][0]["category"], "force")
+        self.assertEqual(data["total_rows"], 1)
+        self.assertEqual(data["total_pages"], 1)
+
+        bsg_payload = CompareRequest(import_ids=[1, 2], section="bsg", show_all=True, page=1, page_size=10)
+        with self.engine.connect() as conn:
+            bsg_result = compare_recipe_params(bsg_payload, conn)
+        self.assertEqual(bsg_result["data"]["section"], "bsg")
+        self.assertTrue(all("stage" not in row and "category" not in row for row in bsg_result["data"]["rows"]))
+        self.assertGreater(len(bsg_result["data"]["rows"]), 0)
+
+        rpm_limits_payload = CompareRequest(
+            import_ids=[1, 2],
+            section="rpm_limits",
+            show_all=True,
+            page=1,
+            page_size=10,
+        )
+        rpm_reference_payload = CompareRequest(
+            import_ids=[1, 2],
+            section="rpm_reference",
+            show_all=True,
+            page=1,
+            page_size=10,
+        )
+        with self.engine.connect() as conn:
+            rpm_limits_result = compare_recipe_params(rpm_limits_payload, conn)
+            rpm_reference_result = compare_recipe_params(rpm_reference_payload, conn)
+        self.assertGreater(len(rpm_limits_result["data"]["rows"]), 0)
+        self.assertGreater(len(rpm_reference_result["data"]["rows"]), 0)
+
+    def test_compare_response_pages_rows(self) -> None:
+        self._insert_imports()
+        with self.engine.begin() as conn:
+            conn.execute(
+                insert(recipe_params),
+                [
+                    {
+                        "id": 1,
+                        "recipe_import_id": 1,
+                        "file_type": "PRM",
+                        "param_name": "parms/B1_Force_Seg_01",
+                        "param_value": "150",
+                    },
+                    {
+                        "id": 2,
+                        "recipe_import_id": 2,
+                        "file_type": "PRM",
+                        "param_name": "parms/B1_Force_Seg_01",
+                        "param_value": "151",
+                    },
+                    {
+                        "id": 3,
+                        "recipe_import_id": 1,
+                        "file_type": "PRM",
+                        "param_name": "parms/B2_Time_Seg_01",
+                        "param_value": "20",
+                    },
+                    {
+                        "id": 4,
+                        "recipe_import_id": 2,
+                        "file_type": "PRM",
+                        "param_name": "parms/B2_Time_Seg_01",
+                        "param_value": "22",
+                    },
+                ],
+            )
+
+        payload = CompareRequest(import_ids=[1, 2], section="params", show_all=False, page=1, page_size=1)
+        with self.engine.connect() as conn:
+            result = compare_recipe_params(payload, conn)
+
+        data = result["data"]
+        self.assertEqual(data["section"], "params")
+        self.assertEqual(data["page"], 1)
+        self.assertEqual(data["page_size"], 1)
+        self.assertEqual(data["total_rows"], 2)
+        self.assertEqual(data["total_pages"], 2)
+        self.assertEqual(len(data["rows"]), 1)
 
 
 if __name__ == "__main__":

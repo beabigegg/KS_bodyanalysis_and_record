@@ -25,6 +25,7 @@ from db.schema import (  # noqa: E402
     recipe_params,
     recipe_rpm_limits,
     recipe_rpm_reference,
+    recipe_wir_group_map,
 )
 from deps import get_connection  # noqa: E402
 from routes.imports import router  # noqa: E402
@@ -183,6 +184,16 @@ def _build_client() -> TestClient:
                 sample_count=10,
             )
         )
+        conn.execute(
+            insert(recipe_wir_group_map).values(
+                id=1,
+                recipe_import_id=1,
+                parms_role="parms",
+                wir_group_no=2,
+                prm_stem="CJ621A20",
+                wire_site_count=4,
+            )
+        )
 
     app = FastAPI()
     app.include_router(router)
@@ -236,11 +247,10 @@ def test_param_facets_return_semantic_filter_values() -> None:
         {"value": "PHY", "count": 1},
         {"value": "PRM", "count": 2},
     ]
-    assert payload["param_groups_by_file_type"]["PRM"] == [{"value": "parms", "count": 2}]
+    assert payload["param_groups_by_file_type"]["PRM"] == [{"value": "wire_2", "count": 2}]
     assert payload["param_groups_by_file_type"]["PHY"] == [{"value": "mag_handler", "count": 1}]
     assert payload["stages_by_file_type"]["PRM"] == [
-        {"value": "ball_formation", "count": 1},
-        {"value": "bond1", "count": 1},
+        {"value": "bond1", "count": 2},
     ]
     assert payload["categories_by_file_type"]["PHY"] == [{"value": "slot", "count": 1}]
 
@@ -252,8 +262,9 @@ def test_get_import_params_pages_and_filters_semantic_rows() -> None:
         "/api/imports/1/params",
         params={
             "file_type": "PRM",
-            "param_group": "parms",
+            "param_group": "wire_2",
             "stage": "bond1",
+            "category": "force",
             "page": 1,
             "page_size": 1,
         },
@@ -266,9 +277,9 @@ def test_get_import_params_pages_and_filters_semantic_rows() -> None:
     assert payload["data"]["page_size"] == 1
     assert payload["data"]["total_pages"] == 1
     assert payload["data"]["rows"][0]["param_name"] == "parms/B1_Force_Seg_01"
-    assert payload["data"]["rows"][0]["param_group"] == "parms"
+    assert payload["data"]["rows"][0]["param_group"] == "wire_2"
     assert payload["data"]["rows"][0]["stage"] == "bond1"
-    assert payload["data"]["rows"][0]["category"] == "seg_01"
+    assert payload["data"]["rows"][0]["category"] == "force"
 
 
 def test_get_import_params_excludes_raw_bsg_by_default() -> None:

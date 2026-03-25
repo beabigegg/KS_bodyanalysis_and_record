@@ -1,57 +1,73 @@
 ## ADDED Requirements
 
 ### Requirement: FastAPI application with .env configuration
-系統 SHALL 建立 FastAPI 應用，所有配置由 .env 檔案管理。
+The system SHALL run as a FastAPI application and load runtime configuration from `.env`.
 
 #### Scenario: Load configuration from .env
-- **WHEN** 應用啟動
-- **THEN** 系統 SHALL 從 .env 載入 APP_PORT、APP_MODE（dev/prod）、MySQL 連線、Oracle 連線（可選）、認證設定
+- **WHEN** the application starts
+- **THEN** it SHALL load environment values such as app mode, port, and database connection settings from `.env`
 
-#### Scenario: Serve frontend as static files (monolithic)
-- **WHEN** 應用啟動
-- **THEN** 系統 SHALL 由 FastAPI 統一託管 frontend/dist 靜態檔案和 API 路由，所有請求透過單一 port 伺服，符合 IT 單體式架構規範
+#### Scenario: Serve frontend as static files
+- **WHEN** the web application is deployed as a single service
+- **THEN** FastAPI SHALL serve the built frontend bundle together with the API
 
 ### Requirement: REST API endpoints
-系統 SHALL 提供結構化的 REST API 端點。
+The system SHALL expose REST APIs for import browsing, compare, trend, and R2R workflows.
 
 #### Scenario: List imports endpoint
-- **WHEN** GET /api/imports（支援 query params 篩選）
-- **THEN** 回傳分頁的 recipe import 記錄列表
+- **WHEN** a client requests `GET /api/imports`
+- **THEN** the system SHALL return recipe import records with supported list filters
 
-#### Scenario: Get import detail endpoint
-- **WHEN** GET /api/imports/{id}/params
-- **THEN** 回傳該 import 的所有參數，依 file_type 分組
+#### Scenario: Import detail summary endpoint
+- **WHEN** a client requests `GET /api/imports/{id}/summary`
+- **THEN** the system SHALL return counts for parameter rows, file types, APP availability, BSG rows, RPM limits, and RPM reference rows for that import
+
+#### Scenario: Import parameter facets endpoint
+- **WHEN** a client requests `GET /api/imports/{id}/param-facets`
+- **THEN** the system SHALL return available file types, parameter groups, stages, and categories derived from that import's stored parameter semantics
+
+#### Scenario: Filtered import params endpoint
+- **WHEN** a client requests `GET /api/imports/{id}/params` with filters such as `file_type`, `param_group`, `stage`, `category`, `search`, `page`, or `page_size`
+- **THEN** the system SHALL return only rows matching those filters and SHALL include total row count for the filtered result set
 
 #### Scenario: Compare endpoint
-- **WHEN** POST /api/compare 帶入多個 import_id
-- **THEN** 回傳各 import 之間的參數差異
+- **WHEN** a client posts to `POST /api/compare` with selected import ids
+- **THEN** the system SHALL return comparison data for the requested section
+
+#### Scenario: Compare endpoint supports section paging
+- **WHEN** a client posts to `POST /api/compare` with `section`, `page`, and `page_size`
+- **THEN** the system SHALL return shared compare context plus only the requested section rows for that page
+
+#### Scenario: Parameter compare filters remain supported
+- **WHEN** a client requests the `params` compare section with a `file_type` filter
+- **THEN** the system SHALL apply that filter before building parameter diff rows
 
 #### Scenario: Trend endpoint
-- **WHEN** GET /api/trend 帶入 machine_id、product_type、param_name、時間範圍
-- **THEN** 回傳時間序列資料
+- **WHEN** a client requests `GET /api/trend`
+- **THEN** the system SHALL return trend data for the requested machine, product, and parameter context
 
 #### Scenario: R2R statistics endpoint
-- **WHEN** GET /api/r2r/stats 帶入機台、產品、參數
-- **THEN** 回傳 SPC 統計值（mean、std_dev、UCL、LCL、Cp、Cpk）
+- **WHEN** a client requests `GET /api/r2r/stats`
+- **THEN** the system SHALL return SPC-oriented statistics such as mean, standard deviation, and capability metrics
 
 ### Requirement: Database connection management
-系統 SHALL 使用 SQLAlchemy 連線池管理 MySQL 連線，重用現有 ksbody_ schema 定義。
+The system SHALL use shared SQLAlchemy schema definitions and read-only database access for web APIs.
 
 #### Scenario: Share schema with parser
-- **WHEN** 應用啟動
-- **THEN** 系統 SHALL import 現有 db/schema.py 的表定義，不重複定義
+- **WHEN** the application starts
+- **THEN** the API layer SHALL use the shared schema definitions from `db/schema.py`
 
 #### Scenario: Read-only access
-- **WHEN** API 處理查詢
-- **THEN** 系統 SHALL 僅執行 SELECT 查詢，不對 ksbody_ 表進行任何寫入操作
+- **WHEN** API routes query application data
+- **THEN** they SHALL rely on read-oriented database access patterns
 
 ### Requirement: API response format
-系統 SHALL 統一 API 回應格式。
+The system SHALL return consistent JSON envelopes for successful and error responses.
 
 #### Scenario: Successful response
-- **WHEN** API 請求成功
-- **THEN** 回傳 JSON 格式 `{"data": ..., "total": N}` 結構
+- **WHEN** an API request succeeds
+- **THEN** the response SHALL use a JSON envelope such as `{"data": ..., "total": N}`
 
 #### Scenario: Error response
-- **WHEN** API 請求失敗
-- **THEN** 回傳 HTTP 錯誤碼和 `{"detail": "error message"}` 結構
+- **WHEN** an API request fails
+- **THEN** the response SHALL return an HTTP error with a JSON body describing the failure

@@ -41,8 +41,11 @@ def _fetch_wir_group_map(
 
 class CompareRequest(BaseModel):
     import_ids: list[int] = Field(min_length=2, max_length=20, description="Import IDs to compare.")
+    section: str = Field(default="params", description="Active compare section.")
     file_type: str | None = None
     show_all: bool = Field(default=False, description="When true, include non-diff rows.")
+    page: int = Field(default=1, ge=1)
+    page_size: int = Field(default=200, ge=1, le=1000)
 
 
 def _has_diff(values: list[Any]) -> bool:
@@ -166,18 +169,22 @@ def _diff_rpm_rows(
     return output
 
 
+def _paginate_rows(
+    rows: list[dict[str, Any]],
+    page: int,
+    page_size: int,
+) -> tuple[list[dict[str, Any]], int, int]:
+    total_rows = len(rows)
+    total_pages = max(1, (total_rows + page_size - 1) // page_size)
+    start = (page - 1) * page_size
+    return rows[start : start + page_size], total_rows, total_pages
+
+
 @router.post("")
 def compare_recipe_params(
     payload: CompareRequest,
     conn: Connection = Depends(get_connection),
 ) -> dict[str, Any]:
-    """
-    Compare selected imports.
-
-    Response data includes params/app_spec/bsg, plus:
-    - rpm_limits: CompareRow[] (expanded per value field)
-    - rpm_reference: CompareRow[] (expanded per value field)
-    """
     meta_stmt = (
         select(recipe_import)
         .where(recipe_import.c.id.in_(payload.import_ids))
@@ -187,82 +194,11 @@ def compare_recipe_params(
     if len(imports) != len(payload.import_ids):
         raise HTTPException(status_code=404, detail="One or more import records do not exist")
 
-    param_stmt = (
-        select(recipe_params)
-        .where(recipe_params.c.recipe_import_id.in_(payload.import_ids))
-        .where(recipe_params.c.file_type != "BSG")
-    )
-    if payload.file_type:
-        param_stmt = param_stmt.where(recipe_params.c.file_type.ilike(f"%{payload.file_type}%"))
-    param_rows = [row_to_dict(row) for row in conn.execute(param_stmt).all()]
+    section = payload.section.lower()
+    if section not in {"params", "app_spec", "bsg", "rpm_limits", "rpm_reference"}:
+        raise HTTPException(status_code=422, detail="Unsupported compare section")
+
     wgm = _fetch_wir_group_map(conn, payload.import_ids)
-    param_diff = _diff_rows(
-        ["file_type", "param_name"],
-        param_rows,
-        payload.import_ids,
-        payload.show_all,
-        include_classification=True,
-        wir_group_map=wgm,
-    )
-
-    app_stmt = select(recipe_app_spec).where(recipe_app_spec.c.recipe_import_id.in_(payload.import_ids))
-    app_rows = [row_to_dict(row) for row in conn.execute(app_stmt).all()]
-    app_pivot: list[dict[str, Any]] = []
-    app_columns = [c.name for c in recipe_app_spec.columns if c.name not in {"id", "recipe_import_id"}]
-    for column in app_columns:
-        values = {str(int(row["recipe_import_id"])): row.get(column) for row in app_rows}
-        is_diff = _has_diff(list(values.values()))
-        if payload.show_all or is_diff:
-            app_pivot.append({"field": column, "values": values, "is_diff": is_diff})
-
-    bsg_stmt = select(recipe_bsg).where(recipe_bsg.c.recipe_import_id.in_(payload.import_ids))
-    bsg_rows = [row_to_dict(row) for row in conn.execute(bsg_stmt).all()]
-    bsg_diff = _diff_rows(
-        ["ball_group", "inspection_key", "process_key"],
-        bsg_rows,
-        payload.import_ids,
-        payload.show_all,
-    )
-
-    rpm_limit_stmt = select(recipe_rpm_limits).where(recipe_rpm_limits.c.recipe_import_id.in_(payload.import_ids))
-    rpm_limit_rows = [row_to_dict(row) for row in conn.execute(rpm_limit_stmt).all()]
-    rpm_limits_diff = _diff_rpm_rows(
-        [
-            "signal_name",
-            "property_name",
-            "rpm_group",
-            "bond_type",
-            "measurement_name",
-            "limit_type",
-            "statistic_type",
-            "parameter_set",
-        ],
-        ["lower_limit", "upper_limit", "active"],
-        rpm_limit_rows,
-        payload.import_ids,
-        payload.show_all,
-    )
-
-    rpm_reference_stmt = select(recipe_rpm_reference).where(
-        recipe_rpm_reference.c.recipe_import_id.in_(payload.import_ids)
-    )
-    rpm_reference_rows = [row_to_dict(row) for row in conn.execute(rpm_reference_stmt).all()]
-    rpm_reference_diff = _diff_rpm_rows(
-        [
-            "signal_name",
-            "property_name",
-            "rpm_group",
-            "bond_type",
-            "measurement_name",
-            "source",
-        ],
-        ["average", "median", "std_dev", "median_abs_dev", "minimum", "maximum", "sample_count"],
-        rpm_reference_rows,
-        payload.import_ids,
-        payload.show_all,
-    )
-
-    # Build wire_group_context: {import_id_str: [WirGroupEntry, ...]}
     wgm_stmt = select(recipe_wir_group_map).where(
         recipe_wir_group_map.c.recipe_import_id.in_(payload.import_ids)
     )
@@ -281,15 +217,95 @@ def compare_recipe_params(
             }
         )
 
+    section_rows: list[dict[str, Any]]
+    if section == "params":
+        param_stmt = (
+            select(recipe_params)
+            .where(recipe_params.c.recipe_import_id.in_(payload.import_ids))
+            .where(recipe_params.c.file_type != "BSG")
+        )
+        if payload.file_type:
+            param_stmt = param_stmt.where(recipe_params.c.file_type.ilike(f"%{payload.file_type}%"))
+        param_rows = [row_to_dict(row) for row in conn.execute(param_stmt).all()]
+        section_rows = _diff_rows(
+            ["file_type", "param_name"],
+            param_rows,
+            payload.import_ids,
+            payload.show_all,
+            include_classification=True,
+            wir_group_map=wgm,
+        )
+    elif section == "app_spec":
+        app_stmt = select(recipe_app_spec).where(recipe_app_spec.c.recipe_import_id.in_(payload.import_ids))
+        app_rows = [row_to_dict(row) for row in conn.execute(app_stmt).all()]
+        app_pivot: list[dict[str, Any]] = []
+        app_columns = [c.name for c in recipe_app_spec.columns if c.name not in {"id", "recipe_import_id"}]
+        for column in app_columns:
+            values = {str(int(row["recipe_import_id"])): row.get(column) for row in app_rows}
+            is_diff = _has_diff(list(values.values()))
+            if payload.show_all or is_diff:
+                app_pivot.append({"field": column, "values": values, "is_diff": is_diff})
+        section_rows = app_pivot
+    elif section == "bsg":
+        bsg_stmt = select(recipe_bsg).where(recipe_bsg.c.recipe_import_id.in_(payload.import_ids))
+        bsg_rows = [row_to_dict(row) for row in conn.execute(bsg_stmt).all()]
+        section_rows = _diff_rows(
+            ["ball_group", "inspection_key", "process_key"],
+            bsg_rows,
+            payload.import_ids,
+            payload.show_all,
+        )
+    elif section == "rpm_limits":
+        rpm_limit_stmt = select(recipe_rpm_limits).where(recipe_rpm_limits.c.recipe_import_id.in_(payload.import_ids))
+        rpm_limit_rows = [row_to_dict(row) for row in conn.execute(rpm_limit_stmt).all()]
+        section_rows = _diff_rpm_rows(
+            [
+                "signal_name",
+                "property_name",
+                "rpm_group",
+                "bond_type",
+                "measurement_name",
+                "limit_type",
+                "statistic_type",
+                "parameter_set",
+            ],
+            ["lower_limit", "upper_limit", "active"],
+            rpm_limit_rows,
+            payload.import_ids,
+            payload.show_all,
+        )
+    else:
+        rpm_reference_stmt = select(recipe_rpm_reference).where(
+            recipe_rpm_reference.c.recipe_import_id.in_(payload.import_ids)
+        )
+        rpm_reference_rows = [row_to_dict(row) for row in conn.execute(rpm_reference_stmt).all()]
+        section_rows = _diff_rpm_rows(
+            [
+                "signal_name",
+                "property_name",
+                "rpm_group",
+                "bond_type",
+                "measurement_name",
+                "source",
+            ],
+            ["average", "median", "std_dev", "median_abs_dev", "minimum", "maximum", "sample_count"],
+            rpm_reference_rows,
+            payload.import_ids,
+            payload.show_all,
+        )
+
+    paged_rows, total_rows, total_pages = _paginate_rows(section_rows, payload.page, payload.page_size)
+
     return {
         "data": {
             "imports": imports,
-            "params": param_diff,
-            "app_spec": app_pivot,
-            "bsg": bsg_diff,
-            "rpm_limits": rpm_limits_diff,
-            "rpm_reference": rpm_reference_diff,
+            "section": section,
+            "rows": paged_rows,
+            "page": payload.page,
+            "page_size": payload.page_size,
+            "total_pages": total_pages,
+            "total_rows": total_rows,
             "wire_group_context": wire_group_context,
         },
-        "total": len(param_diff),
+        "total": total_rows,
     }

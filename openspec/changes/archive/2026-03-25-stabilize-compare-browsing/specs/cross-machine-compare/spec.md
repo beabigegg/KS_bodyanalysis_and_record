@@ -1,18 +1,7 @@
-## ADDED Requirements
-
-### Requirement: Select recipes for comparison
-The system SHALL let users choose multiple imported recipes with matching product context for comparison.
-
-#### Scenario: Select comparison targets
-- **WHEN** the user filters by identifiers such as `product_type`, `bop`, or `wafer_pn`
-- **THEN** the UI SHALL present matching recipe imports grouped by machine and import context
-
-#### Scenario: Quick compare latest recipes
-- **WHEN** the user requests a quick compare for the latest available recipes
-- **THEN** the system SHALL select the latest matching imports for comparison
+## MODIFIED Requirements
 
 ### Requirement: Display parameter differences
-The system SHALL display recipe comparison results as section-based diff views and SHALL include semantic grouping fields such as stage and category for parameter rows.
+The system SHALL display recipe comparison results as section-based diff views and SHALL include parameter classification fields such as stage and category for parameter rows.
 
 #### Scenario: Show only differences
 - **WHEN** compare is requested with diff-only mode enabled
@@ -29,11 +18,11 @@ The system SHALL display recipe comparison results as section-based diff views a
 #### Scenario: Parameter exists on one machine but not another
 - **WHEN** a parameter exists on one selected import but is missing on another selected import
 - **THEN** the system SHALL mark that row as `is_diff = true`
-- **AND** the missing side SHALL be represented as null or empty in the comparison values
+- **AND** the missing side SHALL be represented as null/empty in the comparison values
 
 #### Scenario: BSG params excluded from params section
 - **WHEN** the compare response is built for the parameter section
-- **THEN** the system SHALL exclude `file_type = "BSG"` parameter rows from the parameter diff dataset
+- **THEN** the system SHALL exclude `file_type = 'BSG'` parameter rows from the parameter diff dataset
 - **AND** BSG differences SHALL remain available in the dedicated BSG section
 
 #### Scenario: Param rows include stage and category
@@ -55,21 +44,3 @@ The system SHALL display recipe comparison results as section-based diff views a
 #### Scenario: Compare section results are paged
 - **WHEN** a compare section contains more rows than the configured page size
 - **THEN** the compare API SHALL return a bounded page of rows together with total row count and total pages
-
-### Requirement: Include RPM data in comparison
-The system SHALL include RPM limits and RPM reference datasets in comparison output.
-
-#### Scenario: RPM sections present in compare response
-- **WHEN** compare data is requested
-- **THEN** the compare API SHALL expose `rpm_limits` and `rpm_reference` sections
-
-### Requirement: Compare APP and BSG wide tables
-The system SHALL compare APP and BSG datasets alongside parameter data.
-
-#### Scenario: Compare capillary and wire specs
-- **WHEN** APP data is available for the selected imports
-- **THEN** the system SHALL display those APP fields in compare output
-
-#### Scenario: Compare ball signature settings
-- **WHEN** BSG data is available for the selected imports
-- **THEN** the system SHALL display grouped BSG comparison output

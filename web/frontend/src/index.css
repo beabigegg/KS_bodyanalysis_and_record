@@ -435,6 +435,38 @@ tr.diff-row {
   flex-wrap: wrap;
 }
 
+.segment-groups {
+  display: grid;
+  gap: 12px;
+}
+
+.segment-group {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+}
+
+.segment-group-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.segment-group-header h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.segment-group-header span {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
 @media (max-width: 1080px) {
   .app-shell {
     grid-template-columns: 1fr;
