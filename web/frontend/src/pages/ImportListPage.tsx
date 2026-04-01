@@ -30,12 +30,14 @@ export function ImportListPage() {
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(false)
   const [page, setPage] = useState(1)
+  const [fetchTick, setFetchTick] = useState(0)
   const pageSize = 30
   const [filterOptions, setFilterOptions] = useState<FilterOptions>({
     machine_types: [],
     machine_ids: [],
     product_types: [],
   })
+  const [selected, setSelected] = useState<Set<number>>(new Set())
 
   useEffect(() => {
     void (async () => {
@@ -47,6 +49,10 @@ export function ImportListPage() {
       }
     })()
   }, [])
+
+  useEffect(() => {
+    setSelected(new Set())
+  }, [page, filters])
 
   useEffect(() => {
     void (async () => {
@@ -65,10 +71,56 @@ export function ImportListPage() {
         setLoading(false)
       }
     })()
-  }, [filters, page])
+  }, [filters, page, fetchTick])
 
   const { machine_types: machineTypes, machine_ids: machineIds, product_types: productTypes } = filterOptions
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
+
+  const allOnPageSelected = items.length > 0 && items.every((item) => selected.has(item.id))
+
+  function toggleSelectAll() {
+    if (allOnPageSelected) {
+      setSelected((prev) => {
+        const next = new Set(prev)
+        items.forEach((item) => next.delete(item.id))
+        return next
+      })
+    } else {
+      setSelected((prev) => {
+        const next = new Set(prev)
+        items.forEach((item) => next.add(item.id))
+        return next
+      })
+    }
+  }
+
+  function toggleRow(id: number) {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  async function handleDeleteSingle(id: number) {
+    if (!window.confirm(`Delete import record #${id}? This cannot be undone.`)) return
+    await api.delete(`/imports/${id}`)
+    setSelected((prev) => {
+      const next = new Set(prev)
+      next.delete(id)
+      return next
+    })
+    setFetchTick((t) => t + 1)
+  }
+
+  async function handleDeleteBatch() {
+    const ids = Array.from(selected)
+    if (!window.confirm(`Delete ${ids.length} selected record(s)? This cannot be undone.`)) return
+    await api.delete('/imports/batch', { data: { ids } })
+    setSelected(new Set())
+    setFetchTick((t) => t + 1)
+  }
 
   return (
     <section className="page">
@@ -116,6 +168,11 @@ export function ImportListPage() {
           onChange={(e) => setFilters((prev) => ({ ...prev, search: e.target.value }))}
           placeholder="Search product/bop/wafer/recipe"
         />
+        {selected.size > 0 && (
+          <button onClick={() => void handleDeleteBatch()}>
+            Delete {selected.size} selected
+          </button>
+        )}
       </div>
 
       <div className="panel">
@@ -124,6 +181,9 @@ export function ImportListPage() {
           <table>
             <thead>
               <tr>
+                <th>
+                  <input type="checkbox" checked={allOnPageSelected} onChange={toggleSelectAll} />
+                </th>
                 <th>ID</th>
                 <th>Machine Type</th>
                 <th>Machine ID</th>
@@ -138,6 +198,13 @@ export function ImportListPage() {
             <tbody>
               {items.map((item) => (
                 <tr key={item.id}>
+                  <td>
+                    <input
+                      type="checkbox"
+                      checked={selected.has(item.id)}
+                      onChange={() => toggleRow(item.id)}
+                    />
+                  </td>
                   <td>{item.id}</td>
                   <td>{item.machine_type}</td>
                   <td>{item.machine_id}</td>
@@ -148,6 +215,8 @@ export function ImportListPage() {
                   <td className="mono">{item.import_datetime}</td>
                   <td>
                     <button onClick={() => navigate(`/imports/${item.id}`)}>View</button>
+                    {' '}
+                    <button onClick={() => void handleDeleteSingle(item.id)}>Delete</button>
                   </td>
                 </tr>
               ))}
@@ -171,4 +240,3 @@ export function ImportListPage() {
     </section>
   )
 }
-

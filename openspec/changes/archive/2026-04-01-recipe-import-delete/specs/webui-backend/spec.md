@@ -1,15 +1,4 @@
-## Requirements
-
-### Requirement: FastAPI application with .env configuration
-The system SHALL run as a FastAPI application and load runtime configuration from `.env`.
-
-#### Scenario: Load configuration from .env
-- **WHEN** the application starts
-- **THEN** it SHALL load environment values such as app mode, port, and database connection settings from `.env`
-
-#### Scenario: Serve frontend as static files
-- **WHEN** the web application is deployed as a single service
-- **THEN** FastAPI SHALL serve the built frontend bundle together with the API
+## MODIFIED Requirements
 
 ### Requirement: REST API endpoints
 The system SHALL expose REST APIs for import browsing, compare, trend, R2R workflows, and import record deletion.
@@ -72,14 +61,3 @@ The system SHALL use shared SQLAlchemy schema definitions and support both read 
 #### Scenario: Write access for delete endpoints
 - **WHEN** delete API routes are invoked
 - **THEN** they SHALL use a writable database connection with transaction support
-
-### Requirement: API response format
-The system SHALL return consistent JSON envelopes for successful and error responses.
-
-#### Scenario: Successful response
-- **WHEN** an API request succeeds
-- **THEN** the response SHALL use a JSON envelope such as `{"data": ..., "total": N}`
-
-#### Scenario: Error response
-- **WHEN** an API request fails
-- **THEN** the response SHALL return an HTTP error with a JSON body describing the failure

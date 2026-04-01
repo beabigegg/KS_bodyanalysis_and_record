@@ -28,5 +28,10 @@ def get_connection() -> Generator[Connection, None, None]:
         yield conn
 
 
-__all__ = ["engine", "get_connection", "metadata"]
+def get_writable_connection() -> Generator[Connection, None, None]:
+    with engine.begin() as conn:
+        yield conn
+
+
+__all__ = ["engine", "get_connection", "get_writable_connection", "metadata"]
 

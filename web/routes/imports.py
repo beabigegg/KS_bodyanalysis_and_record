@@ -4,11 +4,12 @@ from collections import defaultdict
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import Connection, and_, distinct, func, or_, select
+from pydantic import BaseModel
+from sqlalchemy import Connection, and_, delete, distinct, func, or_, select
 
 from utils import row_to_dict
 from utils.param_classifier import ParamClassifier
-from deps import get_connection
+from deps import get_connection, get_writable_connection
 
 from db.schema import (  # type: ignore[import-not-found]
     recipe_app_spec,
@@ -21,6 +22,19 @@ from db.schema import (  # type: ignore[import-not-found]
 )
 
 router = APIRouter(prefix="/api/imports", tags=["imports"])
+
+_CHILD_TABLES = [
+    recipe_params,
+    recipe_app_spec,
+    recipe_bsg,
+    recipe_rpm_limits,
+    recipe_rpm_reference,
+    recipe_wir_group_map,
+]
+
+
+class BatchDeleteRequest(BaseModel):
+    ids: list[int]
 
 
 def _ensure_import_exists(conn: Connection, import_id: int) -> None:
@@ -353,6 +367,29 @@ def get_bsg(import_id: int, conn: Connection = Depends(get_connection)) -> dict[
         item = row_to_dict(row)
         grouped[str(item["ball_group"])].append(item)
     return {"data": grouped, "total": len(rows)}
+
+
+@router.delete("/batch")
+def delete_imports_batch(
+    body: BatchDeleteRequest,
+    conn: Connection = Depends(get_writable_connection),
+) -> dict[str, Any]:
+    if not body.ids:
+        raise HTTPException(status_code=400, detail="ids list must not be empty")
+    for table in _CHILD_TABLES:
+        conn.execute(delete(table).where(table.c.recipe_import_id.in_(body.ids)))
+    result = conn.execute(delete(recipe_import).where(recipe_import.c.id.in_(body.ids)))
+    return {"data": {"deleted": result.rowcount}, "total": 1}
+
+
+@router.delete("/{import_id}")
+def delete_import(import_id: int, conn: Connection = Depends(get_writable_connection)) -> dict[str, Any]:
+    if conn.execute(select(recipe_import.c.id).where(recipe_import.c.id == import_id)).scalar_one_or_none() is None:
+        raise HTTPException(status_code=404, detail="Import record not found")
+    for table in _CHILD_TABLES:
+        conn.execute(delete(table).where(table.c.recipe_import_id == import_id))
+    conn.execute(delete(recipe_import).where(recipe_import.c.id == import_id))
+    return {"data": {"deleted": 1}, "total": 1}
 
 
 @router.get("/{import_id}/rpm")
