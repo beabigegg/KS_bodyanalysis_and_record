@@ -1,4 +1,4 @@
-## ADDED Requirements
+## Requirements
 
 ### Requirement: Browse recipe import records
 The system SHALL let users browse imported recipe records with machine and product filters.
@@ -31,15 +31,15 @@ The system SHALL expose guided parameter facets derived from stored parameter se
 
 #### Scenario: File type and semantic facet options are available
 - **WHEN** a user enters the parameter browsing view for an import
-- **THEN** the system SHALL provide available file types, parameter groups, stages, and categories for that import
+- **THEN** the system SHALL provide available file types, parameter groups, stages, categories, and richer PRM semantics such as family and feature for that import
 
 #### Scenario: Parameter facet options reflect current filter context
 - **WHEN** the user applies one or more parameter filters
 - **THEN** the available facet options and counts SHALL update to reflect the remaining matching dataset
 
-#### Scenario: Dedicated BSG detail remains primary
-- **WHEN** an import contains BSG data
-- **THEN** the default parameter browsing summary SHALL avoid emphasizing raw BSG parameter rows and SHALL keep the dedicated BSG detail view as the primary BSG entry point
+#### Scenario: PRM browser can group documented unmapped families
+- **WHEN** the user browses PRM parameters such as `SF*` or `SL*`
+- **THEN** the browser SHALL let the user organize those rows by semantic family and feature instead of leaving them in an undifferentiated unmapped bucket
 
 ### Requirement: Export parameters
 The system SHALL let users export the currently filtered parameter dataset as CSV.

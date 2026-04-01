@@ -1,4 +1,4 @@
-## ADDED Requirements
+## Requirements
 
 ### Requirement: FastAPI application with .env configuration
 The system SHALL run as a FastAPI application and load runtime configuration from `.env`.
@@ -24,11 +24,11 @@ The system SHALL expose REST APIs for import browsing, compare, trend, and R2R w
 
 #### Scenario: Import parameter facets endpoint
 - **WHEN** a client requests `GET /api/imports/{id}/param-facets`
-- **THEN** the system SHALL return available file types, parameter groups, stages, and categories derived from that import's stored parameter semantics
+- **THEN** the system SHALL return available file types, parameter groups, stages, categories, and richer PRM semantic facets such as family and feature derived from that import's stored parameter semantics
 
 #### Scenario: Filtered import params endpoint
-- **WHEN** a client requests `GET /api/imports/{id}/params` with filters such as `file_type`, `param_group`, `stage`, `category`, `search`, `page`, or `page_size`
-- **THEN** the system SHALL return only rows matching those filters and SHALL include total row count for the filtered result set
+- **WHEN** a client requests `GET /api/imports/{id}/params` with filters such as `file_type`, `param_group`, `stage`, `category`, `family`, `feature`, `search`, `page`, or `page_size`
+- **THEN** the system SHALL return matching parameter rows together with their semantic metadata, including PRM fields such as `family`, `feature`, `instance`, `description`, and `tunable` when available, and SHALL include total row count for the filtered result set
 
 #### Scenario: Compare endpoint
 - **WHEN** a client posts to `POST /api/compare` with selected import ids

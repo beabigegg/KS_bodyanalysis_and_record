@@ -1,7 +1,7 @@
-## MODIFIED Requirements
+## Requirements
 
 ### Requirement: Classify param_name into stage and category
-The system SHALL classify PRM parameters using K&S reference-aligned parameter classes and subgroup categories, while continuing to classify non-PRM roles with their existing keyword logic.
+The system SHALL classify PRM parameters using reference-aligned parameter classes and subgroup categories, while also exposing richer semantic metadata for documented PRM families and continuing to classify non-PRM roles with their existing keyword logic.
 
 #### Scenario: Bond1 force parameter maps to bond1 force
 - **WHEN** `param_name = "parms/B1_Force_Seg_01"`
@@ -27,6 +27,10 @@ The system SHALL classify PRM parameters using K&S reference-aligned parameter c
 - **WHEN** `param_name = "parms/NSOP_Sensitivity"`
 - **THEN** the classifier SHALL return `stage = "bits_other"` and `category = "nsop"`
 
+#### Scenario: Dictionary-backed PRM family returns richer semantics
+- **WHEN** `param_name = "parms/SF3_Rtn_Control"`
+- **THEN** the classifier SHALL return semantic metadata including `family = "safety_fence"`, `feature = "return_control"`, and a human-readable description
+
 #### Scenario: Quick adjust parameter maps to quick_adjust
 - **WHEN** `param_name = "parms/Bond_Adjust_Force"`
 - **THEN** the classifier SHALL return `stage = "quick_adjust"` and `category = "bond"`
@@ -49,7 +53,7 @@ The system SHALL classify PRM parameters using K&S reference-aligned parameter c
 
 #### Scenario: LF and MAG remain unclassified
 - **WHEN** `file_type` is `LF` or `MAG`
-- **THEN** the classifier SHALL return `stage = None` and `category = None`
+- **THEN** the classifier SHALL return no PRM semantic classification
 
 #### Scenario: HB temperature zone mapping
 - **WHEN** `param_name` contains `preheat` and `file_type = "HB"`
