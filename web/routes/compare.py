@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import Connection, select
 
 from utils import row_to_dict
-from utils.param_classifier import ParamClassifier
+from utils.param_browse import facet_items, semantic_param_item
 from deps import get_connection
 
 from db.schema import (  # type: ignore[import-not-found]
@@ -43,9 +43,29 @@ class CompareRequest(BaseModel):
     import_ids: list[int] = Field(min_length=2, max_length=20, description="Import IDs to compare.")
     section: str = Field(default="params", description="Active compare section.")
     file_type: str | None = None
+    selected_params: list["CompareParamKey"] | None = None
     show_all: bool = Field(default=False, description="When true, include non-diff rows.")
     page: int = Field(default=1, ge=1)
     page_size: int = Field(default=200, ge=1, le=1000)
+
+
+class CompareParamKey(BaseModel):
+    file_type: str
+    param_name: str
+
+
+class CompareParamCatalogRequest(BaseModel):
+    import_ids: list[int] = Field(min_length=2, max_length=20, description="Import IDs to build a catalog for.")
+    file_type: str | None = None
+    param_group: str | None = None
+    process_step: str | None = None
+    stage: str | None = None
+    category: str | None = None
+    family: str | None = None
+    feature: str | None = None
+    search: str | None = None
+    page: int = Field(default=1, ge=1)
+    page_size: int = Field(default=100, ge=1, le=500)
 
 
 def _has_diff(values: list[Any]) -> bool:
@@ -62,6 +82,7 @@ def _diff_rows(
     show_all: bool,
     include_classification: bool = False,
     wir_group_map: dict[tuple[int, str], int] | None = None,
+    selected_keys: set[tuple[str, str]] | None = None,
 ) -> list[dict[str, Any]]:
     """Build pivoted diff rows from source_rows.
 
@@ -84,6 +105,11 @@ def _diff_rows(
     pivot: dict[tuple[Any, ...], dict[int, Any]] = defaultdict(dict)
     for row in source_rows:
         key = tuple(row.get(k) for k in keys)
+        if selected_keys is not None:
+            key_file_type = str(key[0] or "")
+            key_param_name = str(key[1] or "")
+            if (key_file_type, key_param_name) not in selected_keys:
+                continue
         pivot[key][int(row["recipe_import_id"])] = row.get("param_value", row.get("value"))
 
     output: list[dict[str, Any]] = []
@@ -114,14 +140,8 @@ def _diff_rows(
         item["values"] = {str(import_id): val_map.get(import_id) for import_id in import_ids}
         item["is_diff"] = is_diff
         if include_classification:
+            semantic_param_item(item)
             item["param_group"] = param_group
-            semantics = ParamClassifier.classify_semantics(
-                str(item.get("param_name") or ""),
-                str(item.get("file_type") or ""),
-            )
-            item["stage"] = semantics.stage
-            item["category"] = semantics.category
-            item["process_step"] = semantics.process_step
             wir_group_no: int | None = None
             if wir_group_map is not None and param_group is not None:
                 for imp_id in import_ids:
@@ -181,19 +201,154 @@ def _paginate_rows(
     return rows[start : start + page_size], total_rows, total_pages
 
 
+def _validate_selected_imports(conn: Connection, import_ids: list[int]) -> list[dict[str, Any]]:
+    meta_stmt = (
+        select(recipe_import)
+        .where(recipe_import.c.id.in_(import_ids))
+        .order_by(recipe_import.c.machine_id.asc())
+    )
+    imports = [row_to_dict(row) for row in conn.execute(meta_stmt).all()]
+    if len(imports) != len(import_ids):
+        raise HTTPException(status_code=404, detail="One or more import records do not exist")
+    return imports
+
+
+def _catalog_row_matches(
+    row: dict[str, Any],
+    payload: CompareParamCatalogRequest,
+    *,
+    ignore_file_type: bool = False,
+) -> bool:
+    if not ignore_file_type and payload.file_type and row["file_type"] != payload.file_type:
+        return False
+    if payload.param_group and row.get("param_group") != payload.param_group:
+        return False
+    if payload.process_step and row.get("process_step") != payload.process_step:
+        return False
+    if payload.stage and row.get("stage") != payload.stage:
+        return False
+    if payload.category and row.get("category") != payload.category:
+        return False
+    if payload.family and row.get("family") != payload.family:
+        return False
+    if payload.feature and row.get("feature") != payload.feature:
+        return False
+    if payload.search:
+        term = payload.search.lower()
+        if term not in str(row["param_name"]).lower():
+            return False
+    return True
+
+
+def _build_catalog_facets(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    file_type_counts: dict[str, int] = defaultdict(int)
+    param_groups_by_type: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
+    process_steps_by_type: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
+    stages_by_type: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
+    categories_by_type: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
+    families_by_type: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
+    features_by_type: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
+
+    for row in rows:
+        file_type = str(row["file_type"])
+        file_type_counts[file_type] += 1
+        for key, target in (
+            ("param_group", param_groups_by_type),
+            ("process_step", process_steps_by_type),
+            ("stage", stages_by_type),
+            ("category", categories_by_type),
+            ("family", families_by_type),
+            ("feature", features_by_type),
+        ):
+            value = row.get(key)
+            if isinstance(value, str) and value:
+                target[file_type][value] += 1
+
+    return {
+        "file_types": facet_items(dict(file_type_counts)),
+        "param_groups_by_file_type": {
+            key: facet_items(dict(value))
+            for key, value in sorted(param_groups_by_type.items())
+        },
+        "process_steps_by_file_type": {
+            key: facet_items(dict(value), sort_alpha=False)
+            for key, value in sorted(process_steps_by_type.items())
+        },
+        "stages_by_file_type": {
+            key: facet_items(dict(value))
+            for key, value in sorted(stages_by_type.items())
+        },
+        "categories_by_file_type": {
+            key: facet_items(dict(value))
+            for key, value in sorted(categories_by_type.items())
+        },
+        "families_by_file_type": {
+            key: facet_items(dict(value))
+            for key, value in sorted(families_by_type.items())
+        },
+        "features_by_file_type": {
+            key: facet_items(dict(value))
+            for key, value in sorted(features_by_type.items())
+        },
+    }
+
+
+@router.post("/params/catalog")
+def compare_param_catalog(
+    payload: CompareParamCatalogRequest,
+    conn: Connection = Depends(get_connection),
+) -> dict[str, Any]:
+    imports = _validate_selected_imports(conn, payload.import_ids)
+    param_stmt = (
+        select(recipe_params.c.recipe_import_id, recipe_params.c.file_type, recipe_params.c.param_name)
+        .where(recipe_params.c.recipe_import_id.in_(payload.import_ids))
+        .where(recipe_params.c.file_type != "BSG")
+    )
+    source_rows = [row_to_dict(row) for row in conn.execute(param_stmt).all()]
+
+    union_map: dict[tuple[str, str], set[int]] = defaultdict(set)
+    for row in source_rows:
+        union_map[(str(row["file_type"]), str(row["param_name"]))].add(int(row["recipe_import_id"]))
+
+    all_rows: list[dict[str, Any]] = []
+    total_imports = len(payload.import_ids)
+    for (file_type, param_name), present_ids in sorted(union_map.items()):
+        row: dict[str, Any] = {
+            "file_type": file_type,
+            "param_name": param_name,
+            "present_count": len(present_ids),
+            "missing_count": total_imports - len(present_ids),
+            "is_partial_presence": len(present_ids) < total_imports,
+            "present_import_ids": sorted(present_ids),
+        }
+        semantic_param_item(row)
+        all_rows.append(row)
+
+    filtered_rows = [row for row in all_rows if _catalog_row_matches(row, payload)]
+    facet_rows = [row for row in all_rows if _catalog_row_matches(row, payload, ignore_file_type=True)]
+    facets = _build_catalog_facets(facet_rows)
+    paged_rows, total_rows, total_pages = _paginate_rows(filtered_rows, payload.page, payload.page_size)
+
+    return {
+        "data": {
+            "imports": imports,
+            "rows": paged_rows,
+            "facets": facets,
+            "page": payload.page,
+            "page_size": payload.page_size,
+            "total_pages": total_pages,
+            "total_rows": total_rows,
+        },
+        "total": total_rows,
+    }
+
+
 @router.post("")
 def compare_recipe_params(
     payload: CompareRequest,
     conn: Connection = Depends(get_connection),
 ) -> dict[str, Any]:
-    meta_stmt = (
-        select(recipe_import)
-        .where(recipe_import.c.id.in_(payload.import_ids))
-        .order_by(recipe_import.c.machine_id.asc())
-    )
-    imports = [row_to_dict(row) for row in conn.execute(meta_stmt).all()]
-    if len(imports) != len(payload.import_ids):
-        raise HTTPException(status_code=404, detail="One or more import records do not exist")
+    imports = _validate_selected_imports(conn, payload.import_ids)
 
     section = payload.section.lower()
     if section not in {"params", "app_spec", "bsg", "rpm_limits", "rpm_reference"}:
@@ -220,6 +375,12 @@ def compare_recipe_params(
 
     section_rows: list[dict[str, Any]]
     if section == "params":
+        selected_keys: set[tuple[str, str]] | None = None
+        if payload.selected_params:
+            selected_keys = {
+                (str(item.file_type), str(item.param_name))
+                for item in payload.selected_params
+            }
         param_stmt = (
             select(recipe_params)
             .where(recipe_params.c.recipe_import_id.in_(payload.import_ids))
@@ -235,6 +396,7 @@ def compare_recipe_params(
             payload.show_all,
             include_classification=True,
             wir_group_map=wgm,
+            selected_keys=selected_keys,
         )
     elif section == "app_spec":
         app_stmt = select(recipe_app_spec).where(recipe_app_spec.c.recipe_import_id.in_(payload.import_ids))

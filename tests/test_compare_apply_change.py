@@ -23,7 +23,10 @@ from db.schema import (  # noqa: E402
     recipe_rpm_reference,
 )
 from routes.compare import (  # noqa: E402
+    CompareParamCatalogRequest,
+    CompareParamKey,
     CompareRequest,
+    compare_param_catalog,
     _diff_rows,
     _diff_rpm_rows,
     compare_recipe_params,
@@ -322,6 +325,119 @@ class CompareApplyChangeTests(unittest.TestCase):
         self.assertEqual(data["total_rows"], 2)
         self.assertEqual(data["total_pages"], 2)
         self.assertEqual(len(data["rows"]), 1)
+
+    def test_compare_param_catalog_includes_facets_and_partial_presence(self) -> None:
+        self._insert_imports()
+        with self.engine.begin() as conn:
+            conn.execute(
+                insert(recipe_params),
+                [
+                    {
+                        "id": 1,
+                        "recipe_import_id": 1,
+                        "file_type": "PRM",
+                        "param_name": "parms/B1_Force_Seg_01",
+                        "param_value": "150",
+                    },
+                    {
+                        "id": 2,
+                        "recipe_import_id": 2,
+                        "file_type": "PRM",
+                        "param_name": "parms/B1_Force_Seg_01",
+                        "param_value": "151",
+                    },
+                    {
+                        "id": 3,
+                        "recipe_import_id": 1,
+                        "file_type": "PRM",
+                        "param_name": "parms/B2_Time_Seg_01",
+                        "param_value": "20",
+                    },
+                    {
+                        "id": 4,
+                        "recipe_import_id": 2,
+                        "file_type": "PHY",
+                        "param_name": "phy/Some_Param",
+                        "param_value": "1",
+                    },
+                ],
+            )
+
+        payload = CompareParamCatalogRequest(import_ids=[1, 2], page=1, page_size=10)
+        with self.engine.connect() as conn:
+            result = compare_param_catalog(payload, conn)
+
+        data = result["data"]
+        self.assertEqual(data["total_rows"], 3)
+        self.assertEqual(data["facets"]["file_types"][0]["value"], "PHY")
+        self.assertEqual(data["facets"]["file_types"][1]["value"], "PRM")
+        partial_row = next(row for row in data["rows"] if row["param_name"] == "parms/B2_Time_Seg_01")
+        self.assertEqual(partial_row["present_count"], 1)
+        self.assertEqual(partial_row["missing_count"], 1)
+        self.assertTrue(partial_row["is_partial_presence"])
+
+        filtered_payload = CompareParamCatalogRequest(import_ids=[1, 2], file_type="PRM", page=1, page_size=10)
+        with self.engine.connect() as conn:
+            filtered_result = compare_param_catalog(filtered_payload, conn)
+        filtered_data = filtered_result["data"]
+        self.assertTrue(all(row["file_type"] == "PRM" for row in filtered_data["rows"]))
+        self.assertEqual(
+            {entry["value"] for entry in filtered_data["facets"]["file_types"]},
+            {"PRM", "PHY"},
+        )
+
+    def test_compare_params_section_can_be_scoped_to_selected_keys(self) -> None:
+        self._insert_imports()
+        with self.engine.begin() as conn:
+            conn.execute(
+                insert(recipe_params),
+                [
+                    {
+                        "id": 1,
+                        "recipe_import_id": 1,
+                        "file_type": "PRM",
+                        "param_name": "parms/B1_Force_Seg_01",
+                        "param_value": "150",
+                    },
+                    {
+                        "id": 2,
+                        "recipe_import_id": 2,
+                        "file_type": "PRM",
+                        "param_name": "parms/B1_Force_Seg_01",
+                        "param_value": "151",
+                    },
+                    {
+                        "id": 3,
+                        "recipe_import_id": 1,
+                        "file_type": "PRM",
+                        "param_name": "parms/B2_Time_Seg_01",
+                        "param_value": "20",
+                    },
+                    {
+                        "id": 4,
+                        "recipe_import_id": 2,
+                        "file_type": "PRM",
+                        "param_name": "parms/B2_Time_Seg_01",
+                        "param_value": "22",
+                    },
+                ],
+            )
+
+        payload = CompareRequest(
+            import_ids=[1, 2],
+            section="params",
+            show_all=True,
+            selected_params=[CompareParamKey(file_type="PRM", param_name="parms/B2_Time_Seg_01")],
+            page=1,
+            page_size=10,
+        )
+        with self.engine.connect() as conn:
+            result = compare_recipe_params(payload, conn)
+
+        rows = result["data"]["rows"]
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["file_type"], "PRM")
+        self.assertEqual(rows[0]["param_name"], "parms/B2_Time_Seg_01")
 
 
 if __name__ == "__main__":

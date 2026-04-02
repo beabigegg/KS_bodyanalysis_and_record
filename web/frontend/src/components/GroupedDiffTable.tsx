@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import type { CompareRow, WirGroupEntry } from '../types'
+import { formatParamGroupLabel } from '../lib/paramBrowse'
 import { DiffTable } from './DiffTable'
 
 type GroupedDiffTableProps = {
@@ -63,10 +64,7 @@ function paramGroupLabel(
     }
     return `Bond Group ${groupNo}`
   }
-  if (key === 'parms') return 'Param Group 1'
-  const match = /^parms_(\d+)$/.exec(key)
-  if (match) return `Param Group ${match[1]}`
-  return key
+  return formatParamGroupLabel(key)
 }
 
 function rowGroupKey(row: CompareRow): string | null {

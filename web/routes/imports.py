@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from sqlalchemy import Connection, and_, delete, distinct, func, or_, select
 
 from utils import row_to_dict
-from utils.param_classifier import ParamClassifier
+from utils.param_browse import facet_items, semantic_param_item
 from deps import get_connection, get_writable_connection
 
 from db.schema import (  # type: ignore[import-not-found]
@@ -52,27 +52,8 @@ def _fetch_wir_group_map(conn: Connection, import_id: int) -> dict[str, int]:
     return result
 
 
-def _param_group(param_name: str, wire_group_map: dict[str, int]) -> str | None:
-    if "/" not in param_name:
-        return None
-    group = param_name.split("/", 1)[0].strip()
-    if not group:
-        return None
-    if group.startswith("parms"):
-        wire_group_no = wire_group_map.get(group)
-        if wire_group_no is not None:
-            return f"wire_{wire_group_no}"
-    return group
-
-
 def _semantic_param_row(row: Any, wire_group_map: dict[str, int]) -> dict[str, Any]:
-    item = row_to_dict(row)
-    param_name = str(item.get("param_name") or "")
-    file_type = str(item.get("file_type") or "")
-    semantics = ParamClassifier.classify_semantics(param_name, file_type)
-    item["param_group"] = _param_group(param_name, wire_group_map)
-    item.update(semantics.as_dict())
-    return item
+    return semantic_param_item(row_to_dict(row), wire_group_map=wire_group_map)
 
 
 def _load_semantic_params(
@@ -101,15 +82,6 @@ def _load_semantic_params(
         )
     )
     return [_semantic_param_row(row, wire_group_map) for row in conn.execute(stmt).all()]
-
-
-def _facet_items(counter: dict[str, int], *, sort_alpha: bool = True) -> list[dict[str, Any]]:
-    items = [{"value": key, "count": count} for key, count in counter.items()]
-    if sort_alpha:
-        items.sort(key=lambda item: str(item["value"]))
-    else:
-        items.sort(key=lambda item: (-int(item["count"]), str(item["value"])))
-    return items
 
 
 @router.get("/{import_id}/summary")
@@ -215,25 +187,25 @@ def get_import_param_facets(import_id: int, conn: Connection = Depends(get_conne
 
     return {
         "data": {
-            "file_types": _facet_items(file_type_counts),
+            "file_types": facet_items(file_type_counts),
             "param_groups_by_file_type": {
-                key: _facet_items(dict(value))
+                key: facet_items(dict(value))
                 for key, value in sorted(param_groups_by_type.items())
             },
             "stages_by_file_type": {
-                key: _facet_items(dict(value))
+                key: facet_items(dict(value))
                 for key, value in sorted(stages_by_type.items())
             },
             "categories_by_file_type": {
-                key: _facet_items(dict(value))
+                key: facet_items(dict(value))
                 for key, value in sorted(categories_by_type.items())
             },
             "families_by_file_type": {
-                key: _facet_items(dict(value))
+                key: facet_items(dict(value))
                 for key, value in sorted(families_by_type.items())
             },
             "features_by_file_type": {
-                key: _facet_items(dict(value))
+                key: facet_items(dict(value))
                 for key, value in sorted(features_by_type.items())
             },
         },

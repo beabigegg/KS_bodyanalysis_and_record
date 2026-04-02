@@ -85,6 +85,49 @@ export type CompareRow = {
   [key: string]: unknown
 }
 
+export type CompareParamKey = {
+  file_type: string
+  param_name: string
+}
+
+export type CompareCatalogRow = {
+  file_type: string
+  param_name: string
+  process_step: string | null
+  param_group: string | null
+  stage: string | null
+  category: string | null
+  family: string | null
+  feature: string | null
+  instance: string | null
+  description: string | null
+  tunable: boolean | null
+  present_count: number
+  missing_count: number
+  is_partial_presence: boolean
+  present_import_ids: number[]
+}
+
+export type CompareCatalogFacets = {
+  file_types: CountOption[]
+  param_groups_by_file_type: Record<string, CountOption[]>
+  process_steps_by_file_type: Record<string, CountOption[]>
+  stages_by_file_type: Record<string, CountOption[]>
+  categories_by_file_type: Record<string, CountOption[]>
+  families_by_file_type: Record<string, CountOption[]>
+  features_by_file_type: Record<string, CountOption[]>
+}
+
+export type CompareCatalogPayload = {
+  imports: ImportRecord[]
+  rows: CompareCatalogRow[]
+  facets: CompareCatalogFacets
+  page: number
+  page_size: number
+  total_pages: number
+  total_rows: number
+}
+
 export type ComparePayload = {
   imports: ImportRecord[]
   section: 'params' | 'app_spec' | 'bsg' | 'rpm_limits' | 'rpm_reference'

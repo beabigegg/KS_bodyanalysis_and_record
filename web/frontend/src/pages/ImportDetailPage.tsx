@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom'
 import { api, type ApiResponse } from '../lib/api'
 import { downloadCsv } from '../lib/csv'
 import { displayParamName, prmSegmentGroup } from '../lib/paramName'
+import { formatParamGroupLabel } from '../lib/paramBrowse'
 import { getHiddenClassificationKeys } from '../lib/classificationKeys'
 import { ObjectTable } from '../components/ObjectTable'
 import type { CountOption, ImportDetailSummary, ParamFacets, ParamRow } from '../types'
@@ -32,22 +33,6 @@ type ParamFilterState = {
 const detailTabs = ['PARAMS', 'APP', 'BSG', 'RPM'] as const
 const PARAM_PAGE_SIZE = 100
 const PRM_SEGMENT_PAGE_SIZE = 96
-
-function formatParamGroupLabel(value: string) {
-  const wireMatch = /^wire_(\d+)$/.exec(value)
-  if (wireMatch) {
-    return `Bond Group ${wireMatch[1]}`
-  }
-  if (value === 'parms') {
-    return 'Param Group 1'
-  }
-  const parmsMatch = /^parms_(\d+)$/.exec(value)
-  if (parmsMatch) {
-    return `Param Group ${parmsMatch[1]}`
-  }
-  return value
-}
-
 
 function toParamTableRows(rows: ParamRow[]) {
   return rows.map((row) => {
