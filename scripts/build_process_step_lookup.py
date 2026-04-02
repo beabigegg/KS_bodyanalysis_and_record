@@ -22,6 +22,21 @@ CSV_PATH = REPO_ROOT / "K&S_Recipe_Organized_by_Process.csv"
 OUTPUT_PATH = REPO_ROOT / "web" / "config" / "process_step_lookup.json"
 
 KEEP_FIELDS = ("process_step", "stage", "category", "family", "feature", "description", "tunable")
+SYSTEM_MONITORING_STEP = "7. 系統/監控/其他 (System & Monitoring)"
+BOND1_STEP = "2. BOND1 相關 / BUMP (First Bond)"
+BOND2_STEP = "6. BOND2 相關 (Second Bond / Tail)"
+
+
+def _correct_process_step_for_bond_prefix(param_name: str, process_step: str | None) -> str | None:
+    if process_step != SYSTEM_MONITORING_STEP:
+        return process_step
+
+    prefix = (param_name.split("_", 1)[0] or "").strip().upper()
+    if prefix in {"BOND1", "BUMP"}:
+        return BOND1_STEP
+    if prefix == "BOND2":
+        return BOND2_STEP
+    return process_step
 
 
 def _parse_tunable(value: str) -> bool | None:
@@ -39,6 +54,7 @@ def build_lookup(csv_path: Path) -> dict[str, dict]:
             if not param_name:
                 continue
             process_step = (row.get("process_step_logic") or "").strip() or None
+            process_step = _correct_process_step_for_bond_prefix(param_name, process_step)
             stage = (row.get("stage") or "").strip() or None
             category = (row.get("category") or "").strip() or None
             family = (row.get("family") or "").strip() or None

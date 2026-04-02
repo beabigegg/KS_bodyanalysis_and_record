@@ -53,6 +53,66 @@ class ParamClassifierTests(unittest.TestCase):
         stage, category = ParamClassifier.classify("parms/Bump_Force_Seg_01", "PRM")
         self.assertEqual((stage, category), ("bump", "force"))
 
+    def test_lookup_hit_returns_corrected_bond1_process_step(self) -> None:
+        with patch.object(
+            ParamClassifier,
+            "_get_process_step_lookup",
+            return_value={
+                "Bond1_Force_Seg_01": {
+                    "process_step": "2. BOND1 相關 / BUMP (First Bond)",
+                    "stage": "bond1",
+                    "category": "force",
+                    "family": None,
+                    "feature": None,
+                    "description": None,
+                    "tunable": True,
+                }
+            },
+        ):
+            semantics = ParamClassifier.classify_semantics("parms/Bond1_Force_Seg_01", "PRM")
+
+        self.assertEqual(semantics.process_step, "2. BOND1 相關 / BUMP (First Bond)")
+
+    def test_lookup_hit_returns_corrected_bump_process_step(self) -> None:
+        with patch.object(
+            ParamClassifier,
+            "_get_process_step_lookup",
+            return_value={
+                "Bump_Force_Seg_01": {
+                    "process_step": "2. BOND1 相關 / BUMP (First Bond)",
+                    "stage": "bump",
+                    "category": "force",
+                    "family": None,
+                    "feature": None,
+                    "description": None,
+                    "tunable": True,
+                }
+            },
+        ):
+            semantics = ParamClassifier.classify_semantics("parms/Bump_Force_Seg_01", "PRM")
+
+        self.assertEqual(semantics.process_step, "2. BOND1 相關 / BUMP (First Bond)")
+
+    def test_lookup_hit_returns_corrected_bond2_process_step(self) -> None:
+        with patch.object(
+            ParamClassifier,
+            "_get_process_step_lookup",
+            return_value={
+                "Bond2_Scrub_Amp": {
+                    "process_step": "6. BOND2 相關 (Second Bond / Tail)",
+                    "stage": "bond2",
+                    "category": "scrub",
+                    "family": None,
+                    "feature": None,
+                    "description": None,
+                    "tunable": True,
+                }
+            },
+        ):
+            semantics = ParamClassifier.classify_semantics("parms/Bond2_Scrub_Amp", "PRM")
+
+        self.assertEqual(semantics.process_step, "6. BOND2 相關 (Second Bond / Tail)")
+
     def test_prm_loop_balance_mapping(self) -> None:
         stage, category = ParamClassifier.classify("parms/Bal_Loop_Percent", "PRM")
         self.assertEqual((stage, category), ("loop", "balance"))

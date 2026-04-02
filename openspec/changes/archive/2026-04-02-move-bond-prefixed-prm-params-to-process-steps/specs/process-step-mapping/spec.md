@@ -1,15 +1,4 @@
-## Requirements
-
-### Requirement: Load process-step lookup from static JSON
-The system SHALL load a static JSON lookup file (`web/config/process_step_lookup.json`) at classifier initialization, mapping PRM `param_name` to process-step metadata including `process_step`, `stage`, `category`, and other semantic fields.
-
-#### Scenario: Lookup file loads successfully
-- **WHEN** the classifier is initialized
-- **THEN** the system SHALL load `process_step_lookup.json` and build an in-memory dictionary keyed by `param_name`
-
-#### Scenario: Lookup file is missing
-- **WHEN** `process_step_lookup.json` does not exist
-- **THEN** the classifier SHALL proceed without process-step lookup, falling back entirely to existing keyword and semantics logic
+## MODIFIED Requirements
 
 ### Requirement: CSV-to-JSON conversion script
 The system SHALL provide a conversion script that transforms `K&S_Recipe_Organized_by_Process.csv` into `web/config/process_step_lookup.json`.
