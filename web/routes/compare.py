@@ -115,12 +115,13 @@ def _diff_rows(
         item["is_diff"] = is_diff
         if include_classification:
             item["param_group"] = param_group
-            stage, category = ParamClassifier.classify(
+            semantics = ParamClassifier.classify_semantics(
                 str(item.get("param_name") or ""),
                 str(item.get("file_type") or ""),
             )
-            item["stage"] = stage
-            item["category"] = category
+            item["stage"] = semantics.stage
+            item["category"] = semantics.category
+            item["process_step"] = semantics.process_step
             wir_group_no: int | None = None
             if wir_group_map is not None and param_group is not None:
                 for imp_id in import_ids:

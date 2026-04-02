@@ -28,6 +28,7 @@ export type ParamRow = {
   instance: string | null
   description: string | null
   tunable: boolean | null
+  process_step: string | null
 }
 
 export type CountOption = {
@@ -78,6 +79,7 @@ export type CompareRow = {
   is_diff: boolean
   stage: string | null
   category: string | null
+  process_step: string | null
   param_group: string | null
   wir_group_no: number | null
   [key: string]: unknown

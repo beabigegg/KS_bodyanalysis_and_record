@@ -16,6 +16,7 @@ class ParamSemantics:
     instance: str | None = None
     description: str | None = None
     tunable: bool | None = None
+    process_step: str | None = None
 
     def as_dict(self) -> dict[str, str | bool | None]:
         return asdict(self)
@@ -277,6 +278,18 @@ class ParamClassifier:
     }
 
     _PREFIX_RE = re.compile(r"^([A-Za-z0-9]+)")
+    _process_step_lookup: dict[str, dict] | None = None
+
+    @classmethod
+    def _get_process_step_lookup(cls) -> dict[str, dict]:
+        if cls._process_step_lookup is None:
+            config_path = Path(__file__).resolve().parents[1] / "config" / "process_step_lookup.json"
+            if config_path.exists():
+                with config_path.open("r", encoding="utf-8") as fh:
+                    cls._process_step_lookup = json.load(fh)
+            else:
+                cls._process_step_lookup = {}
+        return cls._process_step_lookup
 
     @classmethod
     def _split_name(cls, param_name: str) -> tuple[str | None, str]:
@@ -490,6 +503,23 @@ class ParamClassifier:
         )
 
     @classmethod
+    def _apply_lookup(cls, pp_body: str, base: ParamSemantics) -> ParamSemantics:
+        """Overlay lookup entry onto base semantics; non-empty lookup fields take priority."""
+        entry = cls._get_process_step_lookup().get(pp_body)
+        if entry is None:
+            return base
+        return ParamSemantics(
+            stage=entry["stage"] if entry.get("stage") else base.stage,
+            category=entry["category"] if entry.get("category") else base.category,
+            family=entry["family"] if entry.get("family") else base.family,
+            feature=entry["feature"] if entry.get("feature") else base.feature,
+            instance=base.instance,
+            description=entry["description"] if entry.get("description") else base.description,
+            tunable=entry["tunable"] if entry.get("tunable") is not None else base.tunable,
+            process_step=entry.get("process_step"),
+        )
+
+    @classmethod
     def classify_semantics(cls, param_name: str, file_type: str) -> ParamSemantics:
         normalized_name = (param_name or "").strip()
         normalized_type = (file_type or "").strip().upper()
@@ -501,7 +531,8 @@ class ParamClassifier:
         body_upper = cls._normalized_body(pp_body)
 
         if (role or "").startswith("parms") or normalized_type == "PRM":
-            return cls._classify_prm_semantics(pp_body)
+            base = cls._classify_prm_semantics(pp_body)
+            return cls._apply_lookup(pp_body, base)
 
         if role == "mag_handler":
             return ParamSemantics(category=cls._keyword_category(body_upper, cls.MAG_HANDLER_KEYWORD_MAP))

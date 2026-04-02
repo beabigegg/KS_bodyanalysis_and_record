@@ -25,10 +25,7 @@ type SegmentPage = {
 
 type ParamFilterState = {
   paramGroup: string
-  stage: string
-  category: string
-  family: string
-  feature: string
+  processStep: string
   search: string
 }
 
@@ -51,35 +48,13 @@ function formatParamGroupLabel(value: string) {
   return value
 }
 
-function formatStageLabel(value: string) {
-  if (value === 'bond1') return 'Bond1'
-  if (value === 'bond2') return 'Bond2'
-  if (value === 'bump') return 'Bump'
-  if (value === 'bits_other') return 'BITS / Other'
-  if (value === 'quick_adjust') return 'Quick Adjust'
-  return value
-}
-
-function humanizeSemanticLabel(value: string) {
-  return value
-    .split('_')
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(' ')
-}
 
 function toParamTableRows(rows: ParamRow[]) {
   return rows.map((row) => {
     const hidden = getHiddenClassificationKeys(row.file_type)
     const entry: Record<string, unknown> = { file_type: row.file_type }
+    if (!hidden.has('process_step')) entry.process_step = row.process_step ?? ''
     if (!hidden.has('param_group')) entry.param_group = row.param_group ? formatParamGroupLabel(row.param_group) : ''
-    if (!hidden.has('stage')) entry.stage = row.stage ? formatStageLabel(row.stage) : ''
-    if (!hidden.has('category')) entry.category = row.category ? humanizeSemanticLabel(row.category) : ''
-    if (!hidden.has('family')) entry.family = row.family ? humanizeSemanticLabel(row.family) : ''
-    if (!hidden.has('feature')) entry.feature = row.feature ? humanizeSemanticLabel(row.feature) : ''
-    if (!hidden.has('instance')) entry.instance = row.instance ?? ''
-    if (!hidden.has('tunable')) entry.tunable = row.tunable == null ? '' : row.tunable ? 'Yes' : 'No'
-    if (!hidden.has('description')) entry.description = row.description ?? ''
     entry.param_name = displayParamName(row.param_name, row.file_type)
     entry.param_value = row.param_value ?? ''
     entry.unit = row.unit ?? ''
@@ -120,16 +95,7 @@ function matchesFilters(row: ParamRow, filters: ParamFilterState, skip?: keyof P
   if (skip !== 'paramGroup' && filters.paramGroup && row.param_group !== filters.paramGroup) {
     return false
   }
-  if (skip !== 'family' && filters.family && row.family !== filters.family) {
-    return false
-  }
-  if (skip !== 'feature' && filters.feature && row.feature !== filters.feature) {
-    return false
-  }
-  if (skip !== 'stage' && filters.stage && row.stage !== filters.stage) {
-    return false
-  }
-  if (skip !== 'category' && filters.category && row.category !== filters.category) {
+  if (skip !== 'processStep' && filters.processStep && row.process_step !== filters.processStep) {
     return false
   }
   if (skip !== 'search' && !matchesSearch(row, filters.search)) {
@@ -140,7 +106,8 @@ function matchesFilters(row: ParamRow, filters: ParamFilterState, skip?: keyof P
 
 function buildFacetOptions(
   rows: ParamRow[],
-  key: 'param_group' | 'stage' | 'category' | 'family' | 'feature',
+  key: 'param_group' | 'stage' | 'category' | 'family' | 'feature' | 'process_step',
+  sortMode: 'alpha' | 'natural' = 'alpha',
 ): CountOption[] {
   const counts = new Map<string, number>()
   for (const row of rows) {
@@ -151,7 +118,14 @@ function buildFacetOptions(
     counts.set(value, (counts.get(value) ?? 0) + 1)
   }
   return Array.from(counts.entries())
-    .sort(([left], [right]) => left.localeCompare(right))
+    .sort(([left], [right]) => {
+      if (sortMode === 'natural') {
+        const leftNum = parseInt(left.match(/^(\d+)/)?.[1] ?? '999', 10)
+        const rightNum = parseInt(right.match(/^(\d+)/)?.[1] ?? '999', 10)
+        if (leftNum !== rightNum) return leftNum - rightNum
+      }
+      return left.localeCompare(right)
+    })
     .map(([value, count]) => ({ value, count }))
 }
 
@@ -166,10 +140,7 @@ export function ImportDetailPage() {
   const [facets, setFacets] = useState<ParamFacets | null>(null)
   const [selectedFileType, setSelectedFileType] = useState('')
   const [selectedParamGroup, setSelectedParamGroup] = useState('')
-  const [selectedFamily, setSelectedFamily] = useState('')
-  const [selectedFeature, setSelectedFeature] = useState('')
-  const [selectedStage, setSelectedStage] = useState('')
-  const [selectedCategory, setSelectedCategory] = useState('')
+  const [selectedProcessStep, setSelectedProcessStep] = useState('')
   const [paramSearch, setParamSearch] = useState('')
   const [sourceRows, setSourceRows] = useState<ParamRow[]>([])
   const [page, setPage] = useState(1)
@@ -184,13 +155,10 @@ export function ImportDetailPage() {
   const filters = useMemo<ParamFilterState>(
     () => ({
       paramGroup: selectedParamGroup,
-      family: selectedFamily,
-      feature: selectedFeature,
-      stage: selectedStage,
-      category: selectedCategory,
+      processStep: selectedProcessStep,
       search: paramSearch,
     }),
-    [paramSearch, selectedCategory, selectedFeature, selectedFamily, selectedParamGroup, selectedStage],
+    [paramSearch, selectedParamGroup, selectedProcessStep],
   )
 
   useEffect(() => {
@@ -205,10 +173,7 @@ export function ImportDetailPage() {
     setSourceRows([])
     setSelectedFileType('')
     setSelectedParamGroup('')
-    setSelectedFamily('')
-    setSelectedFeature('')
-    setSelectedStage('')
-    setSelectedCategory('')
+    setSelectedProcessStep('')
     setParamSearch('')
     setPage(1)
     setAppSpec(undefined)
@@ -319,31 +284,14 @@ export function ImportDetailPage() {
     () => buildFacetOptions(sourceRows.filter((row) => matchesFilters(row, filters, 'paramGroup')), 'param_group'),
     [filters, sourceRows],
   )
-  const familyOptions = useMemo(
+  const processStepOptions = useMemo(
     () =>
       supportsProcessFilters
-        ? buildFacetOptions(sourceRows.filter((row) => matchesFilters(row, filters, 'family')), 'family')
-        : [],
-    [filters, sourceRows, supportsProcessFilters],
-  )
-  const featureOptions = useMemo(
-    () =>
-      supportsProcessFilters
-        ? buildFacetOptions(sourceRows.filter((row) => matchesFilters(row, filters, 'feature')), 'feature')
-        : [],
-    [filters, sourceRows, supportsProcessFilters],
-  )
-  const stageOptions = useMemo(
-    () =>
-      supportsProcessFilters
-        ? buildFacetOptions(sourceRows.filter((row) => matchesFilters(row, filters, 'stage')), 'stage')
-        : [],
-    [filters, sourceRows, supportsProcessFilters],
-  )
-  const categoryOptions = useMemo(
-    () =>
-      supportsProcessFilters
-        ? buildFacetOptions(sourceRows.filter((row) => matchesFilters(row, filters, 'category')), 'category')
+        ? buildFacetOptions(
+            sourceRows.filter((row) => matchesFilters(row, filters, 'processStep')),
+            'process_step',
+            'natural',
+          )
         : [],
     [filters, sourceRows, supportsProcessFilters],
   )
@@ -356,32 +304,11 @@ export function ImportDetailPage() {
   }, [groupOptions, selectedParamGroup])
 
   useEffect(() => {
-    if (selectedFamily && !familyOptions.some((option) => option.value === selectedFamily)) {
-      setSelectedFamily('')
+    if (selectedProcessStep && !processStepOptions.some((option) => option.value === selectedProcessStep)) {
+      setSelectedProcessStep('')
       setPage(1)
     }
-  }, [familyOptions, selectedFamily])
-
-  useEffect(() => {
-    if (selectedFeature && !featureOptions.some((option) => option.value === selectedFeature)) {
-      setSelectedFeature('')
-      setPage(1)
-    }
-  }, [featureOptions, selectedFeature])
-
-  useEffect(() => {
-    if (selectedStage && !stageOptions.some((option) => option.value === selectedStage)) {
-      setSelectedStage('')
-      setPage(1)
-    }
-  }, [selectedStage, stageOptions])
-
-  useEffect(() => {
-    if (selectedCategory && !categoryOptions.some((option) => option.value === selectedCategory)) {
-      setSelectedCategory('')
-      setPage(1)
-    }
-  }, [categoryOptions, selectedCategory])
+  }, [processStepOptions, selectedProcessStep])
 
   const isPrmSegmentedView = selectedFileType === 'PRM'
   const prmSegmentSections = useMemo(() => {
@@ -454,10 +381,7 @@ export function ImportDetailPage() {
 
   const resetParamFilters = () => {
     setSelectedParamGroup('')
-    setSelectedFamily('')
-    setSelectedFeature('')
-    setSelectedStage('')
-    setSelectedCategory('')
+    setSelectedProcessStep('')
     setParamSearch('')
     setPage(1)
   }
@@ -539,10 +463,7 @@ export function ImportDetailPage() {
                   onClick={() => {
                     setSelectedFileType(option.value)
                     setSelectedParamGroup('')
-                    setSelectedFamily('')
-                    setSelectedFeature('')
-                    setSelectedStage('')
-                    setSelectedCategory('')
+                    setSelectedProcessStep('')
                     setParamSearch('')
                     setPage(1)
                   }}
@@ -556,6 +477,22 @@ export function ImportDetailPage() {
 
           <div className="panel">
             <div className="controls" style={{ marginBottom: 10 }}>
+              {supportsProcessFilters ? (
+                <select
+                  value={selectedProcessStep}
+                  onChange={(e) => {
+                    setSelectedProcessStep(e.target.value)
+                    setPage(1)
+                  }}
+                >
+                  <option value="">All process steps</option>
+                  {processStepOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.value} ({option.count})
+                    </option>
+                  ))}
+                </select>
+              ) : null}
               <select
                 value={selectedParamGroup}
                 onChange={(e) => {
@@ -570,70 +507,6 @@ export function ImportDetailPage() {
                   </option>
                 ))}
               </select>
-              {supportsProcessFilters ? (
-                <select
-                  value={selectedFamily}
-                  onChange={(e) => {
-                    setSelectedFamily(e.target.value)
-                    setPage(1)
-                  }}
-                >
-                  <option value="">All families</option>
-                  {familyOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {humanizeSemanticLabel(option.value)} ({option.count})
-                    </option>
-                  ))}
-                </select>
-              ) : null}
-              {supportsProcessFilters ? (
-                <select
-                  value={selectedFeature}
-                  onChange={(e) => {
-                    setSelectedFeature(e.target.value)
-                    setPage(1)
-                  }}
-                >
-                  <option value="">All features</option>
-                  {featureOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {humanizeSemanticLabel(option.value)} ({option.count})
-                    </option>
-                  ))}
-                </select>
-              ) : null}
-              {supportsProcessFilters ? (
-                <select
-                  value={selectedStage}
-                  onChange={(e) => {
-                    setSelectedStage(e.target.value)
-                    setPage(1)
-                  }}
-                >
-                  <option value="">All process stages</option>
-                  {stageOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {formatStageLabel(option.value)} ({option.count})
-                    </option>
-                  ))}
-                </select>
-              ) : null}
-              {supportsProcessFilters ? (
-                <select
-                  value={selectedCategory}
-                  onChange={(e) => {
-                    setSelectedCategory(e.target.value)
-                    setPage(1)
-                  }}
-                >
-                  <option value="">All parameter classes</option>
-                  {categoryOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {humanizeSemanticLabel(option.value)} ({option.count})
-                    </option>
-                  ))}
-                </select>
-              ) : null}
               <input
                 value={paramSearch}
                 onChange={(e) => {

@@ -1,4 +1,4 @@
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Classify param_name into stage and category
 The system SHALL classify PRM parameters using reference-aligned parameter classes and subgroup categories, while also exposing richer semantic metadata for documented PRM families and continuing to classify non-PRM roles with their existing keyword logic. The classifier SHALL additionally return a `process_step` field derived from the process-step lookup table when available.

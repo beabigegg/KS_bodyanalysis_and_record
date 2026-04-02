@@ -1,19 +1,4 @@
-## Requirements
-
-### Requirement: Browse recipe import records
-The system SHALL let users browse imported recipe records with machine and product filters.
-
-#### Scenario: View import list with filters
-- **WHEN** the user opens the import browsing page
-- **THEN** the UI SHALL list recipe imports with fields such as machine type, machine id, product type, BOP, wafer PN, recipe time, and import time
-
-#### Scenario: Filter by machine and product
-- **WHEN** the user applies machine or product filters
-- **THEN** the system SHALL narrow the import list to matching imports
-
-#### Scenario: Search by keyword
-- **WHEN** the user searches by keyword
-- **THEN** the system SHALL match import records by fields such as `product_type`, `bop`, `wafer_pn`, and `recipe_name`
+## MODIFIED Requirements
 
 ### Requirement: Summary-first import detail browsing
 The system SHALL present import detail as a summary-first browsing flow instead of forcing users to load all parameter rows before they can orient themselves. The parameter table SHALL only display classification columns that are meaningful for the current file type.
