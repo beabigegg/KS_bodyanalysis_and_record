@@ -1,5 +1,6 @@
 import type { CompareRow } from '../types'
 import { displayParamName } from '../lib/paramName'
+import { getHiddenClassificationKeys } from '../lib/classificationKeys'
 
 type DiffTableProps = {
   rows: CompareRow[]
@@ -13,7 +14,15 @@ export function DiffTable({ rows, importIds, idToLabel }: DiffTableProps) {
   }
 
   const HIDDEN_KEYS = new Set(['values', 'is_diff', 'stage', 'category', 'param_group'])
-  const metaKeys = Object.keys(rows[0]).filter((key) => !HIDDEN_KEYS.has(key))
+  const allClassificationKeys = getHiddenClassificationKeys('')
+  const emptyClassificationKeys = new Set(
+    [...allClassificationKeys].filter((key) =>
+      rows.every((row) => row[key] == null || row[key] === ''),
+    ),
+  )
+  const metaKeys = Object.keys(rows[0]).filter(
+    (key) => !HIDDEN_KEYS.has(key) && !emptyClassificationKeys.has(key),
+  )
 
   const renderCell = (row: CompareRow, key: string) => {
     if (key === 'param_name') {

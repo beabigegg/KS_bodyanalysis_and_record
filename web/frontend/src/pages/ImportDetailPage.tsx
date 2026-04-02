@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom'
 import { api, type ApiResponse } from '../lib/api'
 import { downloadCsv } from '../lib/csv'
 import { displayParamName, prmSegmentGroup } from '../lib/paramName'
+import { getHiddenClassificationKeys } from '../lib/classificationKeys'
 import { ObjectTable } from '../components/ObjectTable'
 import type { CountOption, ImportDetailSummary, ParamFacets, ParamRow } from '../types'
 
@@ -14,7 +15,7 @@ type RpmData = {
 type SegmentSection = {
   label: string
   count: number
-  rows: Array<Record<string, string | number>>
+  rows: Array<Record<string, unknown>>
 }
 
 type SegmentPage = {
@@ -68,23 +69,25 @@ function humanizeSemanticLabel(value: string) {
 }
 
 function toParamTableRows(rows: ParamRow[]) {
-  return rows.map((row) => ({
-    file_type: row.file_type,
-    param_group: row.param_group ? formatParamGroupLabel(row.param_group) : '',
-    stage: row.stage ? formatStageLabel(row.stage) : '',
-    category: row.category ? humanizeSemanticLabel(row.category) : '',
-    family: row.family ? humanizeSemanticLabel(row.family) : '',
-    feature: row.feature ? humanizeSemanticLabel(row.feature) : '',
-    instance: row.instance ?? '',
-    tunable: row.tunable == null ? '' : row.tunable ? 'Yes' : 'No',
-    description: row.description ?? '',
-    param_name: displayParamName(row.param_name, row.file_type),
-    param_value: row.param_value ?? '',
-    unit: row.unit ?? '',
-    min_value: row.min_value ?? '',
-    max_value: row.max_value ?? '',
-    default_value: row.default_value ?? '',
-  }))
+  return rows.map((row) => {
+    const hidden = getHiddenClassificationKeys(row.file_type)
+    const entry: Record<string, unknown> = { file_type: row.file_type }
+    if (!hidden.has('param_group')) entry.param_group = row.param_group ? formatParamGroupLabel(row.param_group) : ''
+    if (!hidden.has('stage')) entry.stage = row.stage ? formatStageLabel(row.stage) : ''
+    if (!hidden.has('category')) entry.category = row.category ? humanizeSemanticLabel(row.category) : ''
+    if (!hidden.has('family')) entry.family = row.family ? humanizeSemanticLabel(row.family) : ''
+    if (!hidden.has('feature')) entry.feature = row.feature ? humanizeSemanticLabel(row.feature) : ''
+    if (!hidden.has('instance')) entry.instance = row.instance ?? ''
+    if (!hidden.has('tunable')) entry.tunable = row.tunable == null ? '' : row.tunable ? 'Yes' : 'No'
+    if (!hidden.has('description')) entry.description = row.description ?? ''
+    entry.param_name = displayParamName(row.param_name, row.file_type)
+    entry.param_value = row.param_value ?? ''
+    entry.unit = row.unit ?? ''
+    entry.min_value = row.min_value ?? ''
+    entry.max_value = row.max_value ?? ''
+    entry.default_value = row.default_value ?? ''
+    return entry
+  })
 }
 
 function compareSegmentLabel(left: string, right: string) {
