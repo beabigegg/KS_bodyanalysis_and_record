@@ -1,10 +1,18 @@
 """Verify MySQL data after pipeline test."""
+import os
+
+from dotenv import load_dotenv
 import pymysql
 
+load_dotenv()
+
 conn = pymysql.connect(
-    host="mysql.theaken.com", port=33306,
-    user="A060", password="WLeSCi0yhtc7",
-    database="db_A060", charset="utf8mb4",
+    host=os.getenv("MYSQL_HOST", "127.0.0.1"),
+    port=int(os.getenv("MYSQL_PORT", "3306")),
+    user=os.getenv("MYSQL_USER", "root"),
+    password=os.getenv("MYSQL_PASSWORD", ""),
+    database=os.getenv("MYSQL_DATABASE", ""),
+    charset=os.getenv("MYSQL_CHARSET", "utf8mb4"),
 )
 cur = conn.cursor()
 

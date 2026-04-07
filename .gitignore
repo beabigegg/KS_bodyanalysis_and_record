@@ -1,18 +1,22 @@
-# 機敏資料
+﻿# Sensitive files
 .env
 config.yaml
 
-# 程式依賴
-node_modules/
+# Python caches and virtual environments
 __pycache__/
 *.pyc
 *.pyo
+.pytest_cache/
 venv/
+.env/
 
-# 編譯產物
+# Node and frontend artifacts
+node_modules/
 web/frontend/dist/
+dist/
+build/
 
-# Log 與動態檔案
+# Logs and runtime data
 *.log
 logs/
 uploads/
@@ -20,14 +24,21 @@ outputs/
 tmp/
 temp/
 temp_extract/
-
-# 專案特定
 state/
-test_data/
 
-# IDE / OS
+# Database artifacts
+*.db
+*.sqlite3
+
+# Project-specific local data
+test_data/
+nul
+
+# IDE / OS files
 .vscode/
 .idea/
 .DS_Store
+
+# Local assistant metadata
 .claude/
 .codex/

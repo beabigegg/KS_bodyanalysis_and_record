@@ -66,14 +66,17 @@ def build_callback(pipeline: RecipePipeline, logger: logging.Logger):
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="KS recipe body watcher and parser service")
-    parser.add_argument("--config", default="config.yaml", help="Path to YAML config")
+    parser.add_argument(
+        "--config",
+        help="Deprecated and ignored. Pipeline settings are loaded from environment variables.",
+    )
     parser.add_argument(
         "--process-file",
         help="Process one recipe body file and exit (for validation)",
     )
     args = parser.parse_args()
 
-    settings = load_settings(args.config)
+    settings = load_settings()
     configure_logging(settings.log_file)
     logger = logging.getLogger("recipe_service")
 

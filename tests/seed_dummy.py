@@ -36,7 +36,7 @@ MACHINES = [
 
 
 def main() -> None:
-    settings = load_settings(str(ROOT_DIR / "config.yaml"))
+    settings = load_settings()
     engine = create_engine(settings.mysql.sqlalchemy_url())
     repo = RecipeRepository(engine)
     pipeline = RecipePipeline(repository=repo)

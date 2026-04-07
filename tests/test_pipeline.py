@@ -3,7 +3,7 @@ from pipeline import RecipePipeline
 from db.repository import RecipeRepository
 from config.settings import load_settings
 
-settings = load_settings("config.yaml")
+settings = load_settings()
 repo = RecipeRepository.from_settings(settings)
 pipeline = RecipePipeline(repository=repo)
 

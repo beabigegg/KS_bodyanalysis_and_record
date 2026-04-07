@@ -16,7 +16,7 @@ temp_dir.mkdir(parents=True, exist_ok=True)
 shutil.copy2(src, temp_dir / src.name)
 
 try:
-    s = load_settings('config.yaml')
+    s = load_settings()
     engine = create_engine(s.mysql.sqlalchemy_url())
     repo = RecipeRepository(engine)
     pipeline = RecipePipeline(repository=repo)
