@@ -1,5 +1,5 @@
 watch_paths:
-  - "\\\\10.1.1.43\\eap\\prod\\Recipe_Prod"
+  - "\\\\10.1.1.43\\eap_recipe_tracebility\\WBK_ConnX Elite"
 
 mysql:
   host: "mysql.example.com"

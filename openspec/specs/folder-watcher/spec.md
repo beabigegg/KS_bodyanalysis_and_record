@@ -26,6 +26,10 @@
 - **WHEN** 配置的網路路徑無法存取
 - **THEN** 系統 SHALL 記錄錯誤日誌並持續重試連接，不中斷其他路徑的監聽
 
+#### Scenario: Recipe traceability SMB path included
+- **WHEN** `config.yaml` 的 `watch_paths` 包含 recipe 追溯 SMB 共享路徑 `\\10.1.1.43\eap_recipe_tracebility\WBK_ConnX Elite`
+- **THEN** 系統 SHALL 對該路徑啟動與其他路徑相同的 PollingObserver 監聽和 FullScanner 定期掃描
+
 ### Requirement: Periodic full scan as compensation
 系統 SHALL 定期執行全量掃描，比對已入庫記錄與磁碟檔案的 mtime，補償 watchdog 可能錯過的事件。
 
