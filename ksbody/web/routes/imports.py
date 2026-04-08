@@ -35,6 +35,13 @@ _CHILD_TABLES = [
 
 class BatchDeleteRequest(BaseModel):
     ids: list[int]
+    clear_state: bool = False
+
+
+def _get_state_store():
+    from ksbody.web.routes._state_store import get_state_store
+
+    return get_state_store()
 
 
 def _ensure_import_exists(conn: Connection, import_id: int) -> None:
@@ -345,22 +352,50 @@ def get_bsg(import_id: int, conn: Connection = Depends(get_connection)) -> dict[
 def delete_imports_batch(
     body: BatchDeleteRequest,
     conn: Connection = Depends(get_writable_connection),
+    state_store=Depends(_get_state_store),
 ) -> dict[str, Any]:
     if not body.ids:
         raise HTTPException(status_code=400, detail="ids list must not be empty")
+
+    source_files: list[str] = []
+    if body.clear_state:
+        source_files = [
+            str(row[0])
+            for row in conn.execute(
+                select(recipe_import.c.source_file).where(recipe_import.c.id.in_(body.ids))
+            ).all()
+            if row[0]
+        ]
+
     for table in _CHILD_TABLES:
         conn.execute(delete(table).where(table.c.recipe_import_id.in_(body.ids)))
     result = conn.execute(delete(recipe_import).where(recipe_import.c.id.in_(body.ids)))
+
+    if body.clear_state and source_files and state_store:
+        state_store.clear_many(source_files)
+
     return {"data": {"deleted": result.rowcount}, "total": 1}
 
 
 @router.delete("/{import_id}")
-def delete_import(import_id: int, conn: Connection = Depends(get_writable_connection)) -> dict[str, Any]:
-    if conn.execute(select(recipe_import.c.id).where(recipe_import.c.id == import_id)).scalar_one_or_none() is None:
+def delete_import(
+    import_id: int,
+    clear_state: bool = Query(False),
+    conn: Connection = Depends(get_writable_connection),
+    state_store=Depends(_get_state_store),
+) -> dict[str, Any]:
+    source_file = conn.execute(
+        select(recipe_import.c.source_file).where(recipe_import.c.id == import_id)
+    ).scalar_one_or_none()
+    if source_file is None:
         raise HTTPException(status_code=404, detail="Import record not found")
     for table in _CHILD_TABLES:
         conn.execute(delete(table).where(table.c.recipe_import_id == import_id))
     conn.execute(delete(recipe_import).where(recipe_import.c.id == import_id))
+
+    if clear_state and state_store:
+        state_store.clear(str(source_file))
+
     return {"data": {"deleted": 1}, "total": 1}
 
 

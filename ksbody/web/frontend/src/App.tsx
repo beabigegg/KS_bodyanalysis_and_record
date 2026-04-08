@@ -1,11 +1,12 @@
 import { Navigate, NavLink, Route, Routes } from 'react-router-dom'
-import { BarChart3, Database, GitCompareArrows, Gauge, TrendingUp } from 'lucide-react'
+import { Activity, BarChart3, Database, GitCompareArrows, Gauge, TrendingUp } from 'lucide-react'
 import { ImportDetailPage } from './pages/ImportDetailPage'
 import { ImportListPage } from './pages/ImportListPage'
 import { ComparePage } from './pages/ComparePage'
 import { TrendPage } from './pages/TrendPage'
 import { R2RPage } from './pages/R2RPage'
 import { YieldCorrelationPage } from './pages/YieldCorrelationPage'
+import { WatcherPage } from './pages/WatcherPage'
 
 const navItems = [
   { to: '/imports', label: 'Recipe Imports', icon: Database },
@@ -13,6 +14,7 @@ const navItems = [
   { to: '/trend', label: 'Trend Analysis', icon: TrendingUp },
   { to: '/r2r', label: 'R2R Dashboard', icon: BarChart3 },
   { to: '/yield-correlation', label: 'Yield Correlation', icon: Gauge },
+  { to: '/watcher', label: 'Watcher', icon: Activity },
 ]
 
 export default function App() {
@@ -49,6 +51,7 @@ export default function App() {
           <Route path="/trend" element={<TrendPage />} />
           <Route path="/r2r" element={<R2RPage />} />
           <Route path="/yield-correlation" element={<YieldCorrelationPage />} />
+          <Route path="/watcher" element={<WatcherPage />} />
         </Routes>
       </main>
     </div>

@@ -16,6 +16,13 @@ type FilterOptions = {
   product_types: string[]
 }
 
+type DeleteDialogState = {
+  open: boolean
+  mode: 'single' | 'batch'
+  ids: number[]
+  clearState: boolean
+}
+
 const defaultFilters: Filters = {
   machine_type: '',
   machine_id: '',
@@ -38,6 +45,12 @@ export function ImportListPage() {
     product_types: [],
   })
   const [selected, setSelected] = useState<Set<number>>(new Set())
+  const [deleteDialog, setDeleteDialog] = useState<DeleteDialogState>({
+    open: false,
+    mode: 'single',
+    ids: [],
+    clearState: false,
+  })
 
   useEffect(() => {
     void (async () => {
@@ -103,22 +116,59 @@ export function ImportListPage() {
     })
   }
 
-  async function handleDeleteSingle(id: number) {
-    if (!window.confirm(`Delete import record #${id}? This cannot be undone.`)) return
-    await api.delete(`/imports/${id}`)
-    setSelected((prev) => {
-      const next = new Set(prev)
-      next.delete(id)
-      return next
+  function handleDeleteSingle(id: number) {
+    setDeleteDialog({
+      open: true,
+      mode: 'single',
+      ids: [id],
+      clearState: false,
     })
-    setFetchTick((t) => t + 1)
   }
 
-  async function handleDeleteBatch() {
+  function handleDeleteBatch() {
     const ids = Array.from(selected)
-    if (!window.confirm(`Delete ${ids.length} selected record(s)? This cannot be undone.`)) return
-    await api.delete('/imports/batch', { data: { ids } })
-    setSelected(new Set())
+    if (ids.length === 0) return
+    setDeleteDialog({
+      open: true,
+      mode: 'batch',
+      ids,
+      clearState: false,
+    })
+  }
+
+  function closeDeleteDialog() {
+    setDeleteDialog({
+      open: false,
+      mode: 'single',
+      ids: [],
+      clearState: false,
+    })
+  }
+
+  async function confirmDelete() {
+    if (!deleteDialog.open || deleteDialog.ids.length === 0) return
+
+    if (deleteDialog.mode === 'single') {
+      const id = deleteDialog.ids[0]
+      await api.delete(`/imports/${id}`, {
+        params: { clear_state: deleteDialog.clearState },
+      })
+      setSelected((prev) => {
+        const next = new Set(prev)
+        next.delete(id)
+        return next
+      })
+    } else {
+      await api.delete('/imports/batch', {
+        data: {
+          ids: deleteDialog.ids,
+          clear_state: deleteDialog.clearState,
+        },
+      })
+      setSelected(new Set())
+    }
+
+    closeDeleteDialog()
     setFetchTick((t) => t + 1)
   }
 
@@ -169,7 +219,7 @@ export function ImportListPage() {
           placeholder="Search product/bop/wafer/recipe"
         />
         {selected.size > 0 && (
-          <button onClick={() => void handleDeleteBatch()}>
+          <button onClick={handleDeleteBatch}>
             Delete {selected.size} selected
           </button>
         )}
@@ -216,7 +266,7 @@ export function ImportListPage() {
                   <td>
                     <button onClick={() => navigate(`/imports/${item.id}`)}>View</button>
                     {' '}
-                    <button onClick={() => void handleDeleteSingle(item.id)}>Delete</button>
+                    <button onClick={() => handleDeleteSingle(item.id)}>Delete</button>
                   </td>
                 </tr>
               ))}
@@ -237,6 +287,31 @@ export function ImportListPage() {
         </button>
         <span style={{ marginLeft: 'auto' }}>Total: {total}</span>
       </div>
+
+      {deleteDialog.open ? (
+        <div className="delete-modal-backdrop">
+          <div className="delete-modal">
+            <h3>Confirm Delete</h3>
+            <p>
+              {deleteDialog.mode === 'single'
+                ? `Delete import record #${deleteDialog.ids[0]}?`
+                : `Delete ${deleteDialog.ids.length} selected record(s)?`}
+            </p>
+            <label className="inline-check">
+              <input
+                type="checkbox"
+                checked={deleteDialog.clearState}
+                onChange={(e) => setDeleteDialog((prev) => ({ ...prev, clearState: e.target.checked }))}
+              />
+              同時清除已處理標記（允許重新匯入）
+            </label>
+            <div className="delete-modal-footer">
+              <button onClick={closeDeleteDialog}>Cancel</button>
+              <button className="warn" onClick={() => void confirmDelete()}>Delete</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </section>
   )
 }

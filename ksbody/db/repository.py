@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from datetime import datetime
 from typing import Any
 
-from sqlalchemy import Engine, create_engine, func, insert, select
+from sqlalchemy import Engine, create_engine, delete, func, insert, select, update
 
 from ksbody.config import Settings
 from ksbody.db.schema import (
@@ -15,7 +14,9 @@ from ksbody.db.schema import (
     recipe_rpm_limits,
     recipe_rpm_reference,
     recipe_wir_group_map,
+    watcher_events,
 )
+from ksbody.timeutils import now_utc8
 
 
 class RecipeRepository:
@@ -39,7 +40,7 @@ class RecipeRepository:
     ) -> int:
         with self.engine.begin() as conn:
             payload = dict(import_record)
-            payload.setdefault("import_datetime", datetime.utcnow())
+            payload.setdefault("import_datetime", now_utc8())
             result = conn.execute(insert(recipe_import).values(**payload))
             recipe_import_id = int(result.inserted_primary_key[0])
 
@@ -110,3 +111,29 @@ class RecipeRepository:
             if hasattr(value, "timestamp"):
                 return float(value.timestamp())
             return 0.0
+
+
+class WatcherEventRepository:
+    def __init__(self, engine: Engine) -> None:
+        self.engine = engine
+
+    def record_event(
+        self,
+        source_file: str,
+        event_type: str,
+        error_message: str | None = None,
+    ) -> int:
+        with self.engine.begin() as conn:
+            payload: dict[str, Any] = {
+                "source_file": source_file,
+                "event_type": event_type,
+                "error_message": error_message,
+                "event_datetime": now_utc8(),
+            }
+            if conn.dialect.name == "sqlite":
+                max_id = conn.execute(select(func.max(watcher_events.c.id))).scalar_one_or_none() or 0
+                payload["id"] = int(max_id) + 1
+            result = conn.execute(
+                insert(watcher_events).values(**payload)
+            )
+            return int(result.inserted_primary_key[0])

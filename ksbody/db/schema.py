@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from datetime import datetime
-
 from sqlalchemy import (
     BIGINT,
     BOOLEAN,
@@ -16,6 +14,7 @@ from sqlalchemy import (
     MetaData,
     Table,
 )
+from ksbody.timeutils import now_utc8
 
 metadata = MetaData()
 
@@ -35,7 +34,7 @@ recipe_import = Table(
     Column("recipe_datetime", DATETIME, nullable=True),
     Column("lot_id", VARCHAR(128), nullable=True),
     Column("source_file", VARCHAR(1024), nullable=False),
-    Column("import_datetime", DATETIME, nullable=False, default=datetime.utcnow),
+    Column("import_datetime", DATETIME, nullable=False, default=now_utc8),
 )
 
 Index(
@@ -161,6 +160,74 @@ recipe_wir_group_map = Table(
 
 Index("idx_ksbody_wir_group_map_import", recipe_wir_group_map.c.recipe_import_id)
 
+Index(
+    "idx_ksbody_import_source_time",
+    recipe_import.c.source_file,
+    recipe_import.c.import_datetime,
+)
+
+watcher_events = Table(
+    "ksbody_watcher_events",
+    metadata,
+    Column("id", BIGINT, primary_key=True, autoincrement=True),
+    Column("source_file", VARCHAR(1024), nullable=False),
+    Column("event_type", VARCHAR(32), nullable=False),
+    Column("error_message", TEXT, nullable=True),
+    Column("event_datetime", DATETIME, nullable=False, default=now_utc8),
+)
+
+Index(
+    "idx_watcher_events_source_time",
+    watcher_events.c.source_file,
+    watcher_events.c.event_datetime,
+)
+Index(
+    "idx_watcher_events_type_time",
+    watcher_events.c.event_type,
+    watcher_events.c.event_datetime,
+)
+
+reparse_tasks = Table(
+    "ksbody_reparse_tasks",
+    metadata,
+    Column("id", BIGINT, primary_key=True, autoincrement=True),
+    Column("source_file", VARCHAR(1024), nullable=False),
+    Column("status", VARCHAR(32), nullable=False, default="pending"),
+    Column("error_message", TEXT, nullable=True),
+    Column("created_at", DATETIME, nullable=False, default=now_utc8),
+    Column("started_at", DATETIME, nullable=True),
+    Column("completed_at", DATETIME, nullable=True),
+)
+
+Index(
+    "idx_reparse_tasks_status_created",
+    reparse_tasks.c.status,
+    reparse_tasks.c.created_at,
+)
+
+cleanup_config = Table(
+    "ksbody_cleanup_config",
+    metadata,
+    Column("id", BIGINT, primary_key=True, autoincrement=True),
+    Column("enabled", BOOLEAN, nullable=False, default=False),
+    Column("threshold_percent", INTEGER, nullable=False, default=80),
+    Column("last_run_at", DATETIME, nullable=True),
+    Column("updated_at", DATETIME, nullable=False, default=now_utc8),
+)
+
+cleanup_log = Table(
+    "ksbody_cleanup_log",
+    metadata,
+    Column("id", BIGINT, primary_key=True, autoincrement=True),
+    Column("source_file", VARCHAR(1024), nullable=False),
+    Column("file_size_bytes", BIGINT, nullable=False),
+    Column("file_mtime", DATETIME, nullable=False),
+    Column("deleted_at", DATETIME, nullable=False, default=now_utc8),
+    Column("trigger", VARCHAR(32), nullable=False),
+)
+
+Index("idx_cleanup_log_deleted_at", cleanup_log.c.deleted_at)
+
 ALL_TABLES = [
     recipe_import,
     recipe_params,
@@ -169,4 +236,8 @@ ALL_TABLES = [
     recipe_rpm_limits,
     recipe_rpm_reference,
     recipe_wir_group_map,
+    watcher_events,
+    reparse_tasks,
+    cleanup_config,
+    cleanup_log,
 ]

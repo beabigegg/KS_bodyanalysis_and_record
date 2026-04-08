@@ -13,6 +13,18 @@ from ksbody.web.deps import get_connection, get_writable_connection
 from ksbody.web.routes.imports import router
 
 
+class _DummyStateStore:
+    def __init__(self) -> None:
+        self.cleared: list[str] = []
+        self.cleared_many: list[str] = []
+
+    def clear(self, file_path: str) -> None:
+        self.cleared.append(file_path)
+
+    def clear_many(self, file_paths: list[str]) -> None:
+        self.cleared_many.extend(file_paths)
+
+
 @pytest.fixture()
 def app_state():
     test_engine = create_engine("sqlite+pysqlite:///:memory:", future=True, connect_args={"check_same_thread": False}, poolclass=StaticPool)
@@ -57,6 +69,26 @@ class TestSingleDelete:
         response = client.delete("/api/imports/999999")
         assert response.status_code == 404
 
+    def test_delete_with_clear_state_true(self, client, app_state, monkeypatch):
+        import_id = _insert_import(app_state, 3)
+        store = _DummyStateStore()
+        monkeypatch.setattr("ksbody.web.routes._state_store.get_state_store", lambda: store)
+
+        response = client.delete(f"/api/imports/{import_id}", params={"clear_state": "true"})
+
+        assert response.status_code == 200
+        assert store.cleared == ["test.txt"]
+
+    def test_delete_with_clear_state_false(self, client, app_state, monkeypatch):
+        import_id = _insert_import(app_state, 4)
+        store = _DummyStateStore()
+        monkeypatch.setattr("ksbody.web.routes._state_store.get_state_store", lambda: store)
+
+        response = client.delete(f"/api/imports/{import_id}", params={"clear_state": "false"})
+
+        assert response.status_code == 200
+        assert store.cleared == []
+
 
 class TestBatchDelete:
     def test_batch_delete_success(self, client, app_state):
@@ -75,3 +107,33 @@ class TestBatchDelete:
         response = client.request("DELETE", "/api/imports/batch", json={"ids": [import_id, 999999]})
         assert response.status_code == 200
         assert response.json()["data"]["deleted"] == 1
+
+    def test_batch_delete_with_clear_state_true(self, client, app_state, monkeypatch):
+        id1 = _insert_import(app_state, 5)
+        id2 = _insert_import(app_state, 6)
+        store = _DummyStateStore()
+        monkeypatch.setattr("ksbody.web.routes._state_store.get_state_store", lambda: store)
+
+        response = client.request(
+            "DELETE",
+            "/api/imports/batch",
+            json={"ids": [id1, id2], "clear_state": True},
+        )
+
+        assert response.status_code == 200
+        assert response.json()["data"]["deleted"] == 2
+        assert sorted(store.cleared_many) == ["test.txt", "test.txt"]
+
+    def test_batch_delete_with_clear_state_false(self, client, app_state, monkeypatch):
+        id1 = _insert_import(app_state, 7)
+        store = _DummyStateStore()
+        monkeypatch.setattr("ksbody.web.routes._state_store.get_state_store", lambda: store)
+
+        response = client.request(
+            "DELETE",
+            "/api/imports/batch",
+            json={"ids": [id1], "clear_state": False},
+        )
+
+        assert response.status_code == 200
+        assert store.cleared_many == []

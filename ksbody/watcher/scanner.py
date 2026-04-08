@@ -41,6 +41,17 @@ class FileStateStore:
         with self._lock:
             self._data[str(Path(file_path))] = float(mtime)
 
+    def clear(self, file_path: str | Path) -> None:
+        with self._lock:
+            self._data.pop(str(Path(file_path)), None)
+        self.save()
+
+    def clear_many(self, file_paths: list[str | Path]) -> None:
+        with self._lock:
+            for fp in file_paths:
+                self._data.pop(str(Path(fp)), None)
+        self.save()
+
 
 class FullScanner:
     def __init__(
@@ -52,6 +63,7 @@ class FullScanner:
         file_filter: Callable[[Path], bool],
         last_import_lookup: Callable[[Path], float] | None = None,
         logger: logging.Logger | None = None,
+        event_repo=None,
     ) -> None:
         self.watch_paths = watch_paths
         self.callback = callback
@@ -60,6 +72,7 @@ class FullScanner:
         self.file_filter = file_filter
         self.last_import_lookup = last_import_lookup
         self.logger = logger or logging.getLogger(__name__)
+        self.event_repo = event_repo
         self._stop_event = threading.Event()
         self._thread = threading.Thread(target=self._run_loop, daemon=True)
 
@@ -94,6 +107,7 @@ class FullScanner:
                         self.logger.exception("last import lookup failed: %s", file_path)
 
                 if mtime <= last_seen:
+                    self._record_skipped(file_path, "unchanged_mtime")
                     continue
 
                 if self.callback(file_path):
@@ -110,3 +124,11 @@ class FullScanner:
             except Exception:  # noqa: BLE001
                 self.logger.exception("full scanner run failed")
             time.sleep(self.interval_seconds)
+
+    def _record_skipped(self, path: Path, reason: str) -> None:
+        if self.event_repo is None:
+            return
+        try:
+            self.event_repo.record_event(str(path), "skipped", reason)
+        except Exception:  # noqa: BLE001
+            self.logger.exception("failed to record skipped event for %s", path)

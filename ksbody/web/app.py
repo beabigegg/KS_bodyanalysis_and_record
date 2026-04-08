@@ -13,6 +13,7 @@ from ksbody.web.routes.compare import router as compare_router
 from ksbody.web.routes.imports import router as imports_router
 from ksbody.web.routes.r2r import router as r2r_router
 from ksbody.web.routes.trend import router as trend_router
+from ksbody.web.routes.watcher import router as watcher_router
 from ksbody.web.routes.yield_corr import router as yield_router
 from ksbody.config import get_settings
 
@@ -25,7 +26,7 @@ app = FastAPI(
     debug=settings.debug,
 )
 
-# CORS ??禁止 "*", 使用 .env ?�確清單
+# CORS ??禁止 "*", 使用 .env ?�確清單
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.app_cors_origins,
@@ -34,7 +35,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 統�??�誤?��? middleware
+# 統�??�誤?��? middleware
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     logger.error("Unhandled error on %s %s: %s", request.method, request.url.path, exc, exc_info=True)
@@ -48,6 +49,7 @@ app.include_router(imports_router)
 app.include_router(compare_router)
 app.include_router(trend_router)
 app.include_router(r2r_router)
+app.include_router(watcher_router)
 app.include_router(yield_router)
 
 
@@ -56,7 +58,7 @@ def health():
     return {"data": "ok", "total": 1}
 
 
-# ?��?檔�?託管 ???��?式架構�??�端?��?端統一伺�?
+# ?��?檔�?託管 ???��?式架構�??�端?��?端統一伺�?
 FRONTEND_DIST = Path(__file__).resolve().parent / "frontend" / "dist"
 if FRONTEND_DIST.exists():
     assets_dir = FRONTEND_DIST / "assets"

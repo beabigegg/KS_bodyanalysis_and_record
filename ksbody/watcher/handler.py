@@ -27,12 +27,14 @@ class RecipeBodyHandler(FileSystemEventHandler):
         debounce: DebounceConfig,
         state_store: FileStateStore,
         logger: logging.Logger | None = None,
+        event_repo=None,
     ) -> None:
         super().__init__()
         self.callback = callback
         self.debounce = debounce
         self.state_store = state_store
         self.logger = logger or logging.getLogger(__name__)
+        self.event_repo = event_repo
 
     def on_created(self, event: FileSystemEvent) -> None:
         self._handle_event(event)
@@ -58,6 +60,7 @@ class RecipeBodyHandler(FileSystemEventHandler):
             return
 
         if mtime <= self.state_store.get_last_mtime(path):
+            self._record_skipped(path, "already_processed")
             return
 
         if self.callback(path):
@@ -90,3 +93,11 @@ class RecipeBodyHandler(FileSystemEventHandler):
             time.sleep(self.debounce.poll_seconds)
 
         return False
+
+    def _record_skipped(self, path: Path, reason: str) -> None:
+        if self.event_repo is None:
+            return
+        try:
+            self.event_repo.record_event(str(path), "skipped", reason)
+        except Exception:  # noqa: BLE001
+            self.logger.exception("failed to record skipped event for %s", path)
