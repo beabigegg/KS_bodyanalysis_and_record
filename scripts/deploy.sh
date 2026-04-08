@@ -78,6 +78,14 @@ activate_env() {
 
 # ─── Main ─────────────────────────────────────────────────────────────────────
 
+trap 'echo "deploy.sh: ERROR at line $LINENO (exit $?)" >&2' ERR
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+echo "==> [1/4] Mounting SMB (requires sudo)..."
+sudo bash "${SCRIPT_DIR}/mount-smb.sh"
+
+echo "==> [2/4] Activating Python environment..."
 activate_env
 
 echo "Installing Python dependencies..."

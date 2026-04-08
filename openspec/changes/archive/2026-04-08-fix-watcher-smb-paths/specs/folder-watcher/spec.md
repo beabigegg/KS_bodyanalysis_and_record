@@ -1,4 +1,4 @@
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Configurable watch paths
 系統 SHALL 從環境變數讀取監聽根目錄路徑，支援多個根目錄配置。

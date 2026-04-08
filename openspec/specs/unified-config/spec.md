@@ -47,3 +47,11 @@
 #### Scenario: Run pipeline without APP_HOST
 - **WHEN** 僅啟動 pipeline 且 `APP_HOST` 未設定
 - **THEN** `get_settings().app_host` 使用預設值 `0.0.0.0`
+
+#### Scenario: WATCH_PATHS uses Linux local mount path
+- **WHEN** `.env` 設定 `WATCH_PATHS=/mnt/eap_recipe/WBK_ConnX Elite`
+- **THEN** `get_settings().watch_paths` 回傳包含該 `Path` 物件的 list
+
+#### Scenario: .env.example documents mount path format
+- **WHEN** 使用者參考 `.env.example` 設定 `WATCH_PATHS`
+- **THEN** 範例值 SHALL 為 Linux 本地掛載路徑格式（如 `/mnt/eap_recipe/WBK_ConnX Elite`），而非 Windows UNC 路徑
