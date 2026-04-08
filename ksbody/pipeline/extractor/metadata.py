@@ -2,11 +2,8 @@
 
 from dataclasses import asdict, dataclass
 from pathlib import Path
-import re
 
-FILENAME_PATTERN = re.compile(
-    r"^L_[^@]+@(?P<product_type>[^@]+)@(?P<bop>[^@]+)@(?P<wafer_pn>[^_]+)_(?P<recipe_version>\d+)$"
-)
+from ksbody.recipe_filename import match_recipe_filename
 
 
 @dataclass(frozen=True)
@@ -46,7 +43,7 @@ def extract_machine_info(source_file: str | Path) -> tuple[str, str]:
 
 def extract_filename_info(source_file: str | Path) -> tuple[str, str, str, int]:
     name = Path(source_file).name
-    match = FILENAME_PATTERN.match(name)
+    match = match_recipe_filename(name)
     if not match:
         raise MetadataParseError(f"Filename does not match expected pattern: {name}")
 

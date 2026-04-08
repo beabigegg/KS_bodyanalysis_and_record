@@ -136,6 +136,20 @@ WATCH_PATHS=/mnt/eap_recipe/WBK_ConnX Elite
 >
 > **注意：** 必須使用 Linux 本地掛載路徑，不可直接使用 Windows UNC 路徑（`\\server\share`），原因見[部署 - SMB 掛載](#smb-掛載)。
 
+### Recipe body 檔名格式
+
+Watcher 與 pipeline 目前接受以下兩種 recipe body 檔名：
+
+- `L_<machine>@<product_type>@<bop>@<wafer_pn>_<recipe_version>`
+- `L_<machine>@<product_type>@<bop>@<wafer_pn>_<recipe_version>_<timestamp>`
+
+例如：
+
+- `L_WBK_ConnX Elite@PJS6400@ECC17@WAF007957_1`
+- `L_WBK_ConnX Elite@PJS6400@ECC17@WAF007957_1_1775539396`
+
+其中尾碼 `timestamp` 為可選欄位，系統會忽略它，不會寫入 metadata。
+
 ### SMB 認證（供 deploy.sh 自動掛載使用）
 
 ```env
@@ -233,7 +247,15 @@ ksbody pipeline                        # 啟動 watcher pipeline
 ksbody pipeline --process-file <path>  # 手動處理單一 recipe 檔案（驗證用）
 ksbody web                             # 只啟動 Web API
 ksbody all                             # pipeline + web 同時啟動
-ksbody init-db                         # 建立資料庫 schema
+ksbody init-db                         # 顯式建立資料庫 schema
+```
+
+`ksbody pipeline`、`ksbody web` 與 `ksbody all` 啟動時，都會先自動建立缺少的 `ksbody_*` MySQL 資料表與索引；`ksbody init-db` 則保留作為手動初始化/驗證指令。
+
+可用以下 SQL 驗證 schema 是否已建立：
+
+```sql
+show tables like 'ksbody_%';
 ```
 
 ---

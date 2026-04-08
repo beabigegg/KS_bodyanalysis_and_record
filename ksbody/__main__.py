@@ -5,7 +5,7 @@ import argparse
 import uvicorn
 
 from ksbody.config import get_settings
-from ksbody.db.init_db import init_db
+from ksbody.db.init_db import ensure_schema, init_db
 from ksbody.manager import ProcessManager
 from ksbody.pipeline.runner import run_pipeline
 
@@ -39,12 +39,15 @@ def main() -> None:
     args = parser.parse_args()
 
     if args.command == "pipeline":
+        ensure_schema()
         run_pipeline(process_file=args.process_file)
         return
     if args.command == "web":
+        ensure_schema()
         _run_web()
         return
     if args.command == "all":
+        ensure_schema()
         ProcessManager().run()
         return
     if args.command == "init-db":

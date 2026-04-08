@@ -2,22 +2,14 @@ from __future__ import annotations
 
 from pathlib import Path
 import logging
-import re
 import time
 from typing import Callable
 
 from watchdog.events import FileSystemEvent, FileSystemEventHandler
 
 from ksbody.config import DebounceConfig
+from ksbody.recipe_filename import is_recipe_body_filename
 from ksbody.watcher.scanner import FileStateStore
-
-
-RECIPE_BODY_PATTERN = re.compile(r"^L_[^@]+@[^@]+@[^@]+@[^_]+_\d+$")
-
-
-
-def is_recipe_body_filename(path: str | Path) -> bool:
-    return bool(RECIPE_BODY_PATTERN.match(Path(path).name))
 
 
 class RecipeBodyHandler(FileSystemEventHandler):

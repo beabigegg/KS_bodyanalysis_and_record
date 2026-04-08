@@ -11,6 +11,14 @@
 - **WHEN** 查閱 README.md
 - **THEN** 文件分別說明 pipeline 服務和 web 服務的啟動方式與用途
 
+#### Scenario: README documents accepted recipe filename patterns
+- **WHEN** 開發者查閱 README 的 watcher / pipeline 說明
+- **THEN** 文件 SHALL 列出 `..._<recipe_version>` 與 `..._<recipe_version>_<timestamp>` 兩種可接受格式
+
+#### Scenario: README documents database bootstrap behavior
+- **WHEN** 開發者在空的 MySQL schema 上部署服務
+- **THEN** README SHALL 說明服務啟動會自動建立缺少的 `ksbody_*` 資料表，並提供驗證指令
+
 ### Requirement: Version-pinned requirements.txt
 根目錄 `requirements.txt` SHALL 使用 `==` 鎖定所有套件版本，並以 `#` 註解說明每個套件的用途。
 

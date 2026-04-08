@@ -1,4 +1,4 @@
-## ADDED Requirements
+## MODIFIED Requirements
 
 ### Requirement: Unified CLI with subcommands
 系統 SHALL 提供 `python -m ksbody` 作為統一入口，透過子命令選擇啟動模式，並在服務啟動路徑上先完成共用資料庫 schema bootstrap。
@@ -26,10 +26,3 @@
 #### Scenario: No subcommand
 - **WHEN** 使用者執行 `python -m ksbody` 不帶子命令
 - **THEN** 系統 SHALL 顯示使用說明（help）
-
-### Requirement: Console script entrypoint
-系統 SHALL 透過 `pyproject.toml` 註冊 `ksbody` 命令，使 `pip install` 後可直接使用。
-
-#### Scenario: Use ksbody command after install
-- **WHEN** 使用者執行 `pip install .` 後
-- **THEN** `ksbody all`、`ksbody pipeline`、`ksbody web`、`ksbody init-db` 等命令可直接使用，行為等同 `python -m ksbody`

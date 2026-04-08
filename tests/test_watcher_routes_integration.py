@@ -32,6 +32,10 @@ def _recipe_name(index: int) -> str:
     return f"L_WBK_ConnX Elite@ECC17@BOP-A@WAF903898_{index}"
 
 
+def _timestamp_recipe_name(index: int) -> str:
+    return f"L_WBK_ConnX Elite@ECC17@BOP-A@WAF903898_{index}_1775539{index:03d}"
+
+
 @pytest.fixture()
 def app_state(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     watch_dir = tmp_path / "smb" / "recipes"
@@ -115,6 +119,34 @@ def test_status_disk_usage_and_files_endpoints(app_state) -> None:
     failed_response = client.get("/api/watcher/files", params={"status_filter": "failed"})
     assert failed_response.status_code == 200
     assert failed_response.json()["total"] == 1
+
+
+def test_status_and_files_include_timestamp_suffix_recipe(app_state) -> None:
+    client: TestClient = app_state["client"]
+    watch_dir: Path = app_state["watch_dir"]
+    engine = app_state["engine"]
+
+    source_file = watch_dir / _timestamp_recipe_name(7)
+    source_file.write_bytes(b"timestamp")
+
+    with engine.begin() as conn:
+        conn.execute(
+            insert(watcher_events).values(
+                id=1,
+                source_file=str(source_file),
+                event_type="processed",
+                event_datetime=now_utc8(),
+            )
+        )
+
+    status_response = client.get("/api/watcher/status")
+    assert status_response.status_code == 200
+    assert status_response.json()["watch_paths"][0]["file_count"] == 1
+
+    files_response = client.get("/api/watcher/files")
+    assert files_response.status_code == 200
+    assert files_response.json()["total"] == 1
+    assert files_response.json()["data"][0]["path"] == str(source_file)
 
 
 def test_stats_events_reparse_cleanup_endpoints(app_state) -> None:

@@ -45,3 +45,9 @@ def test_scanner_records_skipped_when_mtime_unchanged(tmp_path: Path) -> None:
 
     assert callback_called["value"] is False
     assert event_repo.events == [(str(source_file), "skipped", "unchanged_mtime")]
+
+
+def test_timestamp_suffix_recipe_name_is_accepted() -> None:
+    source_file = Path("L_WBK_ConnX Elite@ECC17@BOP-A@WAF903898_1_1775539423")
+
+    assert is_recipe_body_filename(source_file) is True

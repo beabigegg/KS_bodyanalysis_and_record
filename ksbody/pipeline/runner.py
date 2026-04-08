@@ -10,8 +10,9 @@ from typing import Callable
 from sqlalchemy import Engine, Table, func, insert, select, update
 
 from ksbody.config import get_settings
+from ksbody.db.init_db import ensure_schema
 from ksbody.db.repository import RecipeRepository, WatcherEventRepository
-from ksbody.db.schema import cleanup_config, cleanup_log, metadata, reparse_tasks
+from ksbody.db.schema import cleanup_config, cleanup_log, reparse_tasks
 from ksbody.pipeline import RecipePipeline
 from ksbody.timeutils import from_timestamp_utc8, now_utc8
 from ksbody.watcher.handler import RecipeBodyHandler, is_recipe_body_filename
@@ -284,6 +285,7 @@ def run_pipeline(process_file: str | None = None) -> None:
     settings = get_settings()
     configure_logging(settings.log_file)
     logger = logging.getLogger("recipe_service")
+    ensure_schema()
 
     if process_file:
         # Validation mode: process one file and exit without requiring DB connectivity.
@@ -293,7 +295,7 @@ def run_pipeline(process_file: str | None = None) -> None:
         return
 
     repository = RecipeRepository.from_settings(settings)
-    metadata.create_all(repository.engine)
+    ensure_schema(repository.engine)
     event_repo = WatcherEventRepository(repository.engine)
     pipeline = RecipePipeline(repository=repository, logger=logger)
     callback = build_callback(pipeline, logger, event_repo=event_repo)
