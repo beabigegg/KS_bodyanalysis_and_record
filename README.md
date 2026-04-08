@@ -1,82 +1,130 @@
-﻿# KS Body Analysis and Record
+# KS Body Analysis and Record
 
-KS ConnX Elite recipe body analysis project with two services:
-- Pipeline service: watches recipe body files, parses content, and writes metadata to MySQL.
-- Web service: FastAPI + React UI for querying and visualizing parsed recipe data.
+This repository contains one Python application package, [`ksbody/`](/d:/WORK/user_scrip/TOOL/KS_bodyanalysis_and_record/ksbody), plus the project-level files needed to develop, test, package, and deploy it.
 
-## Architecture
+## Structure
 
-- `main.py`: pipeline entrypoint (watcher + scanner + parser + MySQL persistence)
-- `web/app.py`: web entrypoint (FastAPI API + static frontend hosting)
-- `config/settings.py`: pipeline environment-based configuration loader
-- `web/settings.py`: web environment-based configuration loader
+- `ksbody/`: application code
+- `tests/`: automated tests
+- `scripts/`: deployment and maintenance scripts
+- `pyproject.toml`: single source of truth for Python dependencies and CLI entrypoints
+- `.env.example`: single source of truth for runtime configuration template
 
 ## Installation
 
-### 1. Pipeline dependencies
-
 ```bash
-pip install -r requirements.txt
+pip install -e .
 ```
 
-### 2. Web dependencies
+Optional Oracle support:
 
 ```bash
-cd web
-pip install -r requirements.txt
-cd frontend
-npm install
+pip install -e ".[oracle]"
+```
+
+Frontend build:
+
+```bash
+cd ksbody/web/frontend
+npm ci
 npm run build
 ```
 
-## Environment Variables
+## Configuration
 
-Use root `.env.example` as the source template for both services.
+Runtime configuration is loaded from the project root `.env`.
 
 ```bash
 cp .env.example .env
 ```
 
 Key groups:
-- Pipeline: `WATCH_PATHS`, `DEBOUNCE_*`, `SCAN_INTERVAL`, `LOG_FILE`, `STATE_FILE`
-- Shared DB: `MYSQL_*`
-- Web app: `APP_*`
-- Optional Oracle: `ORACLE_*`
-- Recipe trace SMB: `RECIPE_TRACE_SMB_*`
+- `MYSQL_*`
+- `WATCH_PATHS`, `DEBOUNCE_*`, `SCAN_INTERVAL`, `LOG_FILE`, `STATE_FILE`
+- `APP_*`
+- `ORACLE_*`
 
-Do not commit `.env` with real credentials.
+Before starting services, make sure `.env` contains:
+- reachable `MYSQL_*` connection settings
+- valid `WATCH_PATHS`
+- optional `APP_PORT` if `12010` is already in use
 
-## Start Commands
-
-### Pipeline
-
-```bash
-python main.py
-```
-
-Optional one-shot validation:
+## Commands
 
 ```bash
-python main.py --process-file "<recipe-body-file>"
+python -m ksbody pipeline
+python -m ksbody pipeline --process-file "<recipe-body-file>"
+python -m ksbody web
+python -m ksbody all
+python -m ksbody init-db
 ```
 
-### Web
+After installation, the console script is also available:
 
 ```bash
-cd web
-python app.py
+ksbody pipeline
+ksbody web
+ksbody all
+ksbody init-db
 ```
 
-## Deployment Notes
+## Deployment
 
-1. Prepare `.env` from root `.env.example` and fill production secrets.
-2. Set web runtime to production (`APP_MODE=prod`, `APP_DEBUG=false`).
-3. Build frontend assets (`cd web/frontend && npm run build`).
-4. Start pipeline (`python main.py`) and web (`cd web && python app.py`) as separate services.
-5. Ensure network access to configured SMB watch path and MySQL server.
+Full deployment script:
 
-## OpenSpec Documentation
+```bash
+bash scripts/deploy.sh
+```
 
-PRD/SDD/TDD requirements are tracked in OpenSpec artifacts:
+Behavior:
+- prefers conda if available
+- falls back to repo-local `.venv` when conda is unavailable
+- installs the package in editable mode
+- builds frontend assets
+- starts `python -m ksbody all` by default
+
+Useful environment flags:
+
+```bash
+DEPLOY_START=0 bash scripts/deploy.sh
+RUN_NPM_CI=1 bash scripts/deploy.sh
+CONDA_ENV_NAME=ksbody bash scripts/deploy.sh
+```
+
+- `DEPLOY_START=0`: deploy only, do not start services
+- `RUN_NPM_CI=1`: force re-install frontend packages
+- `CONDA_ENV_NAME`: choose a different conda env name
+
+## Startup
+
+Start only the web service:
+
+```bash
+bash scripts/start-web.sh
+scripts\start-web.bat
+```
+
+Direct CLI startup:
+
+```bash
+python -m ksbody web
+python -m ksbody pipeline
+python -m ksbody all
+```
+
+Validation mode for one recipe archive:
+
+```bash
+python -m ksbody pipeline --process-file "<recipe-body-file>"
+```
+
+Health check after startup:
+
+```bash
+curl http://127.0.0.1:12010/api/health
+```
+
+## OpenSpec
+
 - `openspec/changes/`
 - `openspec/specs/`

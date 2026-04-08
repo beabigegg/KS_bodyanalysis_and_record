@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=75.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ksbody"
+version = "1.0.0"
+description = "KS body analysis pipeline and web service"
+requires-python = ">=3.11"
+dependencies = [
+    "watchdog>=4.0",
+    "sqlalchemy>=2.0",
+    "pymysql>=1.1",
+    "python-dotenv>=1.0",
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.34",
+    "pydantic>=2.0",
+]
+
+[project.optional-dependencies]
+oracle = ["oracledb>=2.0"]
+
+[project.scripts]
+ksbody = "ksbody.__main__:main"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+include = ["ksbody*"]
+
+[tool.setuptools.package-data]
+ksbody = ["web/frontend/dist/**", "web/config/*.json"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
