@@ -27,7 +27,7 @@ def configure_logging(log_file: Path) -> None:
     stream_handler = logging.StreamHandler()
     stream_handler.setFormatter(formatter)
 
-    file_handler = logging.FileHandler(log_file, encoding="utf-8")
+    file_handler = logging.FileHandler(log_file, mode="w", encoding="utf-8")
     file_handler.setFormatter(formatter)
 
     root.handlers.clear()

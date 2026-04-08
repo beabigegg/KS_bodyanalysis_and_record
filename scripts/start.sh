@@ -5,8 +5,10 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CONDA_ENV_NAME="${CONDA_ENV_NAME:-ksbody}"
 PYTHON_CMD="python"
 LOG_DIR="${ROOT_DIR}/logs"
+ARCHIVE_DIR="${LOG_DIR}/archive"
 PID_FILE="${LOG_DIR}/ksbody.pid"
 LOG_FILE="${LOG_DIR}/ksbody-all.log"
+RECIPE_LOG="${LOG_DIR}/recipe_import.log"
 APP_PORT="${APP_PORT:-12010}"
 
 # ─── Resolve Python command ───────────────────────────────────────────────────
@@ -60,6 +62,32 @@ release_port() {
   fi
 }
 
+# ─── Log rotation ────────────────────────────────────────────────────────────
+
+rotate_logs() {
+  # Archive existing logs with timestamp before starting new session
+  local ts
+  ts="$(date '+%Y%m%d_%H%M%S')"
+
+  mkdir -p "${ARCHIVE_DIR}"
+
+  if [ -f "${LOG_FILE}" ] && [ -s "${LOG_FILE}" ]; then
+    mv "${LOG_FILE}" "${ARCHIVE_DIR}/ksbody-all_${ts}.log"
+    echo "Archived ksbody-all.log -> archive/ksbody-all_${ts}.log"
+  fi
+
+  if [ -f "${RECIPE_LOG}" ] && [ -s "${RECIPE_LOG}" ]; then
+    mv "${RECIPE_LOG}" "${ARCHIVE_DIR}/recipe_import_${ts}.log"
+    echo "Archived recipe_import.log -> archive/recipe_import_${ts}.log"
+  fi
+
+  # Clean up old archives (keep last 10 of each type)
+  cd "${ARCHIVE_DIR}" 2>/dev/null && \
+    ls -t ksbody-all_*.log 2>/dev/null | tail -n +11 | xargs -r rm -f && \
+    ls -t recipe_import_*.log 2>/dev/null | tail -n +11 | xargs -r rm -f
+  cd "${ROOT_DIR}"
+}
+
 # ─── Commands ─────────────────────────────────────────────────────────────────
 
 do_start() {
@@ -70,10 +98,11 @@ do_start() {
 
   activate_env
   mkdir -p "${LOG_DIR}"
+  rotate_logs
   release_port
 
   echo "Starting ksbody (pipeline + web)..."
-  nohup "${PYTHON_CMD}" -m ksbody all >> "${LOG_FILE}" 2>&1 &
+  nohup "${PYTHON_CMD}" -m ksbody all > "${LOG_FILE}" 2>&1 &
   echo $! > "${PID_FILE}"
   echo "ksbody started (pid=$(read_pid))."
   echo "  Web:  http://localhost:${APP_PORT}/"
